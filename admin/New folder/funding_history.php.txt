@@ -1,0 +1,116 @@
+<?php
+
+include("../config.php");
+
+if(!isset($_SESSION['admin_id']))
+{
+    header("Location: login.php");
+    exit();
+}
+
+?>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>
+
+Funding History
+
+</title>
+
+<link rel="stylesheet"
+href="../assets/css/style.css">
+
+</head>
+
+<body>
+
+<div class="header">
+
+FUNDING HISTORY
+
+</div>
+
+<div class="container">
+
+<div class="card">
+
+<table>
+
+<tr>
+
+<th>ID</th>
+<th>User</th>
+<th>Amount</th>
+<th>Funded By</th>
+<th>Date</th>
+
+</tr>
+
+<?php
+
+$query =
+mysqli_query(
+$conn,
+"SELECT
+
+wallet_funding.*,
+
+users.fullname AS user_name,
+
+admins.fullname AS admin_name
+
+FROM wallet_funding
+
+INNER JOIN users
+
+ON wallet_funding.user_id =
+users.id
+
+INNER JOIN admins
+
+ON wallet_funding.funded_by =
+admins.id
+
+ORDER BY wallet_funding.id DESC"
+);
+
+while(
+$row =
+mysqli_fetch_assoc($query)
+)
+{
+?>
+
+<tr>
+
+<td><?php echo $row['id']; ?></td>
+
+<td><?php echo $row['user_name']; ?></td>
+
+<td>
+₦<?php echo number_format($row['amount'],2); ?>
+</td>
+
+<td><?php echo $row['admin_name']; ?></td>
+
+<td><?php echo $row['funded_date']; ?></td>
+
+</tr>
+
+<?php
+}
+?>
+
+</table>
+
+</div>
+
+</div>
+
+</body>
+
+</html>

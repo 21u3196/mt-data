@@ -1,0 +1,249 @@
+<?php
+
+include("../config.php");
+
+if(!isset($_SESSION['admin_id']))
+{
+    header("Location: login.php");
+    exit();
+}
+
+$message = "";
+
+if(isset($_POST['add_plan']))
+{
+
+$network_id =
+$_POST['network_id'];
+
+$plan_name =
+$_POST['plan_name'];
+
+$amount =
+$_POST['amount'];
+
+mysqli_query(
+$conn,
+"INSERT INTO data_plans(
+network_id,
+plan_name,
+amount
+)
+VALUES(
+'$network_id',
+'$plan_name',
+'$amount'
+)"
+);
+
+$message =
+"<div class='alert-success'>
+Plan Added Successfully
+</div>";
+
+}
+
+?>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>
+Manage Plans
+</title>
+
+<link rel="stylesheet"
+href="../assets/css/style.css">
+
+</head>
+
+<body>
+
+<div class="header">
+
+DATA PLAN MANAGEMENT
+
+</div>
+
+<div class="container">
+
+<?php echo $message; ?>
+
+<div class="card">
+
+<form method="POST">
+
+<label>
+
+Network
+
+</label>
+
+<select
+name="network_id"
+class="form-control">
+
+<?php
+
+$networks =
+mysqli_query(
+$conn,
+"SELECT * FROM networks"
+);
+
+while(
+$row=
+mysqli_fetch_assoc($networks)
+)
+{
+?>
+
+<option
+value="<?php echo $row['id']; ?>">
+
+<?php
+echo $row['network_name'];
+?>
+
+</option>
+
+<?php
+}
+?>
+
+</select>
+
+<label>
+
+Plan Name
+
+</label>
+
+<input
+type="text"
+name="plan_name"
+class="form-control"
+required>
+
+<label>
+
+Amount
+
+</label>
+
+<input
+type="number"
+step="0.01"
+name="amount"
+class="form-control"
+required>
+
+<button
+name="add_plan"
+class="btn btn-primary">
+
+Add Plan
+
+</button>
+
+</form>
+<hr>
+
+<h3>
+
+Existing Data Plans
+
+</h3>
+
+<table>
+
+<tr>
+
+<th>ID</th>
+<th>Network</th>
+<th>Plan</th>
+<th>Amount</th>
+<th>Actions</th>
+
+</tr>
+
+<?php
+
+$list =
+mysqli_query(
+$conn,
+"SELECT
+data_plans.*,
+networks.network_name
+
+FROM data_plans
+
+INNER JOIN networks
+
+ON data_plans.network_id =
+networks.id
+
+ORDER BY data_plans.id DESC"
+);
+
+while(
+$row =
+mysqli_fetch_assoc($list)
+)
+{
+?>
+
+<tr>
+
+<td><?php echo $row['id']; ?></td>
+
+<td><?php echo $row['network_name']; ?></td>
+
+<td><?php echo $row['plan_name']; ?></td>
+
+<td>
+₦<?php echo number_format($row['amount'],2); ?>
+</td>
+
+<td>
+
+<a href="edit_plan.php?id=<?php echo $row['id']; ?>">
+
+<button class="btn btn-warning">
+
+Edit
+
+</button>
+
+</a>
+
+<a
+href="delete_plan.php?id=<?php echo $row['id']; ?>"
+onclick="return confirm('Delete this plan?')">
+
+<button class="btn btn-danger">
+
+Delete
+
+</button>
+
+</a>
+
+</td>
+
+</tr>
+
+<?php
+}
+?>
+
+</table>
+
+</div>
+
+</div>
+
+</body>
+</html>

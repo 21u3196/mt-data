@@ -1,0 +1,138 @@
+<?php
+
+include("../config.php");
+
+if(!isset($_SESSION['admin_id']))
+{
+    header("Location: login.php");
+    exit();
+}
+
+?>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>
+
+Transaction History
+
+</title>
+
+<link rel="stylesheet"
+href="../assets/css/style.css">
+
+</head>
+
+<body>
+
+<div class="header">
+
+ALL TRANSACTIONS
+
+</div>
+
+<div class="container">
+
+<div class="card">
+
+<table>
+
+<tr>
+
+<th>ID</th>
+
+<th>User</th>
+
+<th>Service</th>
+
+<th>Description</th>
+
+<th>Destination</th>
+
+<th>Amount</th>
+
+<th>Date</th>
+
+</tr>
+
+<?php
+
+$query =
+mysqli_query(
+$conn,
+"SELECT
+transactions.*,
+users.fullname
+
+FROM transactions
+
+INNER JOIN users
+
+ON transactions.user_id =
+users.id
+
+ORDER BY transactions.id DESC"
+);
+
+while(
+$row =
+mysqli_fetch_assoc($query)
+)
+{
+?>
+
+<tr>
+
+<td>
+<?php echo $row['id']; ?>
+</td>
+
+<td>
+<?php echo $row['fullname']; ?>
+</td>
+
+<td>
+<?php echo $row['service_type']; ?>
+</td>
+
+<td>
+<?php echo $row['description']; ?>
+</td>
+
+<td>
+<?php echo $row['phone_number']; ?>
+</td>
+
+<td>
+
+₦<?php
+echo number_format(
+$row['amount'],
+2
+);
+?>
+
+</td>
+
+<td>
+<?php echo $row['transaction_date']; ?>
+</td>
+
+</tr>
+
+<?php
+}
+?>
+
+</table>
+
+</div>
+
+</div>
+
+</body>
+
+</html>

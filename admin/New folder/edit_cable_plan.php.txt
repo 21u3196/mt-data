@@ -1,0 +1,117 @@
+<?php
+
+include("../config.php");
+
+if(!isset($_SESSION['admin_id']))
+{
+    header("Location: login.php");
+    exit();
+}
+
+$id = intval($_GET['id']);
+
+$query =
+mysqli_query(
+$conn,
+"SELECT * FROM cable_plans
+WHERE id='$id'"
+);
+
+$plan =
+mysqli_fetch_assoc($query);
+
+$message = "";
+
+if(isset($_POST['update']))
+{
+
+    $plan_name =
+    mysqli_real_escape_string(
+    $conn,
+    $_POST['plan_name']
+    );
+
+    $amount =
+    floatval(
+    $_POST['amount']
+    );
+
+    mysqli_query(
+    $conn,
+    "UPDATE cable_plans
+    SET
+    plan_name='$plan_name',
+    amount='$amount'
+    WHERE id='$id'"
+    );
+
+    $message =
+    "<div class='alert-success'>
+    Package Updated Successfully
+    </div>";
+
+}
+
+?>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>Edit Cable Plan</title>
+
+<link rel="stylesheet"
+href="../assets/css/style.css">
+
+</head>
+
+<body>
+
+<div class="header">
+
+EDIT CABLE PLAN
+
+</div>
+
+<div class="container">
+
+<?php echo $message; ?>
+
+<div class="card">
+
+<form method="POST">
+
+<label>Package Name</label>
+
+<input
+type="text"
+name="plan_name"
+value="<?php echo $plan['plan_name']; ?>"
+class="form-control">
+
+<label>Amount</label>
+
+<input
+type="number"
+step="0.01"
+name="amount"
+value="<?php echo $plan['amount']; ?>"
+class="form-control">
+
+<button
+name="update"
+class="btn btn-primary">
+
+Update Package
+
+</button>
+
+</form>
+
+</div>
+
+</div>
+
+</body>
+</html>

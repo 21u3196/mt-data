@@ -1,0 +1,265 @@
+<?php
+
+include("../config.php");
+
+if(!isset($_SESSION['user_id']))
+{
+    header("Location: login.php");
+    exit();
+}
+
+$user_id = $_SESSION['user_id'];
+
+if($_SERVER['REQUEST_METHOD'] != 'POST')
+{
+    header("Location: dashboard.php");
+    exit();
+}
+
+$provider_id = intval($_POST['provider']);
+$plan_id     = intval($_POST['plan_id']);
+
+$smartcard = mysqli_real_escape_string(
+    $conn,
+    $_POST['smartcard']
+);
+
+/* ==========================
+   USER INFORMATION
+========================== */
+
+$user_query = mysqli_query(
+$conn,
+"SELECT * FROM users
+WHERE id='$user_id'"
+);
+
+$user = mysqli_fetch_assoc(
+$user_query
+);
+
+$current_balance =
+$user['wallet_balance'];
+
+/* ==========================
+   GET PLAN
+========================== */
+
+$plan_query = mysqli_query(
+$conn,
+"SELECT
+cable_plans.*,
+cable_providers.provider_name
+
+FROM cable_plans
+
+INNER JOIN cable_providers
+
+ON cable_plans.provider_id =
+cable_providers.id
+
+WHERE cable_plans.id='$plan_id'"
+);
+
+if(mysqli_num_rows($plan_query)==0)
+{
+    die("Invalid Plan");
+}
+
+$plan =
+mysqli_fetch_assoc(
+$plan_query
+);
+
+$amount =
+$plan['amount'];
+
+/* ==========================
+   CHECK BALANCE
+========================== */
+
+if($current_balance < $amount)
+{
+?>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>
+Insufficient Balance
+</title>
+
+<link rel="stylesheet"
+href="../assets/css/style.css">
+
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="card">
+
+<div class="alert-danger">
+
+Insufficient Wallet Balance
+
+</div>
+
+<br>
+
+<a href="dashboard.php">
+
+<button class="btn btn-danger">
+
+Return Dashboard
+
+</button>
+
+</a>
+
+</div>
+
+</div>
+
+</body>
+
+</html>
+
+<?php
+exit();
+}
+
+/* ==========================
+   DEDUCT WALLET
+========================== */
+
+$new_balance =
+$current_balance - $amount;
+
+mysqli_query(
+$conn,
+"UPDATE users
+SET wallet_balance='$new_balance'
+WHERE id='$user_id'"
+);
+
+/* ==========================
+   SAVE TRANSACTION
+========================== */
+
+$description =
+$plan['provider_name']
+.
+" - "
+.
+$plan['plan_name']
+.
+" Subscription";
+
+mysqli_query(
+$conn,
+"INSERT INTO transactions(
+user_id,
+service_type,
+description,
+phone_number,
+amount
+)
+VALUES(
+'$user_id',
+'Cable',
+'$description',
+'$smartcard',
+'$amount'
+)"
+);
+
+?>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>
+
+Cable Subscription Successful
+
+</title>
+
+<link rel="stylesheet"
+href="../assets/css/style.css">
+
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="card">
+
+<div class="alert-success">
+
+Cable Subscription Successful
+
+</div>
+
+<br>
+
+<h3>
+
+Provider:
+<?php echo $plan['provider_name']; ?>
+
+</h3>
+
+<h3>
+
+Package:
+<?php echo $plan['plan_name']; ?>
+
+</h3>
+
+<h3>
+
+Smart Card:
+<?php echo $smartcard; ?>
+
+</h3>
+
+<h3>
+
+Amount:
+₦<?php echo number_format($amount,2); ?>
+
+</h3>
+
+<h3>
+
+Remaining Wallet:
+₦<?php echo number_format($new_balance,2); ?>
+
+</h3>
+
+<br>
+
+<a href="dashboard.php">
+
+<button class="btn btn-primary">
+
+Return Dashboard
+
+</button>
+
+</a>
+
+</div>
+
+</div>
+
+</body>
+
+</html>

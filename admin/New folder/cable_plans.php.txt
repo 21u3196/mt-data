@@ -1,0 +1,259 @@
+<?php
+
+include("../config.php");
+
+if(!isset($_SESSION['admin_id']))
+{
+    header("Location: login.php");
+    exit();
+}
+
+$message = "";
+
+if(isset($_POST['add_plan']))
+{
+
+    $provider_id =
+    intval($_POST['provider_id']);
+
+    $plan_name =
+    mysqli_real_escape_string(
+    $conn,
+    $_POST['plan_name']
+    );
+
+    $amount =
+    floatval(
+    $_POST['amount']
+    );
+
+    mysqli_query(
+    $conn,
+    "INSERT INTO cable_plans(
+    provider_id,
+    plan_name,
+    amount
+    )
+    VALUES(
+    '$provider_id',
+    '$plan_name',
+    '$amount'
+    )"
+    );
+
+    $message =
+    "<div class='alert-success'>
+    Cable Plan Added Successfully
+    </div>";
+}
+
+?>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>Cable Plans</title>
+
+<link rel="stylesheet"
+href="../assets/css/style.css">
+
+</head>
+
+<body>
+
+<div class="header">
+
+CABLE PLAN MANAGEMENT
+
+</div>
+
+<div class="container">
+
+<?php echo $message; ?>
+
+<div class="card">
+
+<h3>Add New Package</h3>
+
+<form method="POST">
+
+<label>Provider</label>
+
+<select
+name="provider_id"
+class="form-control"
+required>
+
+<?php
+
+$providers =
+mysqli_query(
+$conn,
+"SELECT * FROM cable_providers"
+);
+
+while(
+$row =
+mysqli_fetch_assoc($providers)
+)
+{
+?>
+
+<option
+value="<?php echo $row['id']; ?>">
+
+<?php
+echo $row['provider_name'];
+?>
+
+</option>
+
+<?php
+}
+?>
+
+</select>
+
+<label>Package Name</label>
+
+<input
+type="text"
+name="plan_name"
+class="form-control"
+required>
+
+<label>Amount</label>
+
+<input
+type="number"
+step="0.01"
+name="amount"
+class="form-control"
+required>
+
+<button
+type="submit"
+name="add_plan"
+class="btn btn-primary">
+
+Add Package
+
+</button>
+
+</form>
+
+</div>
+
+<br>
+
+<div class="card">
+
+<h3>Available Packages</h3>
+
+<table>
+
+<tr>
+
+<th>ID</th>
+<th>Provider</th>
+<th>Package</th>
+<th>Amount</th>
+<th>Action</th>
+
+</tr>
+
+<?php
+
+$query =
+mysqli_query(
+$conn,
+"SELECT
+cable_plans.*,
+cable_providers.provider_name
+
+FROM cable_plans
+
+INNER JOIN cable_providers
+
+ON cable_plans.provider_id =
+cable_providers.id
+
+ORDER BY cable_plans.id DESC"
+);
+
+while(
+$row =
+mysqli_fetch_assoc($query)
+)
+{
+?>
+
+<tr>
+
+<td>
+<?php echo $row['id']; ?>
+</td>
+
+<td>
+<?php echo $row['provider_name']; ?>
+</td>
+
+<td>
+<?php echo $row['plan_name']; ?>
+</td>
+
+<td>
+
+₦<?php
+echo number_format(
+$row['amount'],
+2
+);
+?>
+
+</td>
+
+<td>
+
+<a href="edit_cable_plan.php?id=<?php echo $row['id']; ?>">
+
+<button
+class="btn btn-warning">
+
+Edit
+
+</button>
+
+</a>
+
+<a
+href="delete_cable_plan.php?id=<?php echo $row['id']; ?>"
+onclick="return confirm('Delete Package?')">
+
+<button
+class="btn btn-danger">
+
+Delete
+
+</button>
+
+</a>
+
+</td>
+
+</tr>
+
+<?php
+}
+?>
+
+</table>
+
+</div>
+
+</div>
+
+</body>
+</html>

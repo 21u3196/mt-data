@@ -1,0 +1,168 @@
+<?php
+
+include("../config.php");
+
+if(!isset($_SESSION['admin_id']))
+{
+    header("Location: login.php");
+    exit();
+}
+
+$total_users =
+mysqli_num_rows(
+mysqli_query(
+$conn,
+"SELECT * FROM users"
+)
+);
+
+$total_plans =
+mysqli_num_rows(
+mysqli_query(
+$conn,
+"SELECT * FROM data_plans"
+)
+);
+
+$total_transactions =
+mysqli_num_rows(
+mysqli_query(
+$conn,
+"SELECT * FROM transactions"
+)
+);
+
+?>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>
+
+Admin Dashboard
+
+</title>
+
+<link rel="stylesheet"
+href="../assets/css/style.css">
+
+</head>
+
+<body>
+
+<div class="header">
+
+ADMIN DASHBOARD
+
+</div>
+
+<div class="sidebar">
+
+<ul>
+
+<li>
+<a href="dashboard.php">
+Dashboard
+</a>
+</li>
+
+<li>
+<a href="users.php">
+Manage Users
+</a>
+</li>
+
+<li>
+<a href="plans.php">
+Data Plans
+</a>
+</li>
+
+<li>
+<a href="transactions.php">
+Transactions
+</a>
+</li>
+
+<li>
+<a href="../logout.php">
+Logout
+</a>
+</li>
+
+</ul>
+
+</div>
+
+<div class="content">
+
+<div class="dashboard-box">
+
+<h2>
+
+Welcome
+
+<?php
+echo $_SESSION['admin_name'];
+?>
+
+</h2>
+
+</div>
+
+<div class="dashboard-box">
+
+<h3>
+
+Registered Users
+
+</h3>
+
+<h1>
+
+<?php echo $total_users; ?>
+
+</h1>
+
+</div>
+
+<div class="dashboard-box">
+
+<h3>
+
+Available Data Plans
+
+</h3>
+
+<h1>
+
+<?php echo $total_plans; ?>
+
+</h1>
+
+</div>
+
+<div class="dashboard-box">
+
+<h3>
+
+Transactions
+
+</h3>
+
+<h1>
+
+<?php echo $total_transactions; ?>
+
+</h1>
+
+</div>
+
+</div>
+
+</body>
+</html>

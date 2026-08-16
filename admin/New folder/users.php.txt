@@ -1,0 +1,179 @@
+<?php
+
+include("../config.php");
+
+if(!isset($_SESSION['admin_id']))
+{
+    header("Location: login.php");
+    exit();
+}
+
+$message = "";
+
+if(isset($_POST['fund']))
+{
+
+    $user_id =
+    intval($_POST['user_id']);
+
+    $amount =
+    floatval($_POST['amount']);
+
+    if($amount > 0)
+    {
+
+        mysqli_query(
+        $conn,
+        "UPDATE users
+        SET wallet_balance =
+        wallet_balance + $amount
+        WHERE id='$user_id'"
+        );
+
+        mysqli_query(
+        $conn,
+        "INSERT INTO wallet_funding(
+        user_id,
+        amount,
+        funded_by
+        )
+        VALUES(
+        '$user_id',
+        '$amount',
+        '".$_SESSION['admin_id']."'
+        )"
+        );
+
+        $message =
+        "<div class='alert-success'>
+        Wallet Funded Successfully
+        </div>";
+
+    }
+
+}
+
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+
+<title>Manage Users</title>
+
+<link rel="stylesheet"
+href="../assets/css/style.css">
+
+</head>
+
+<body>
+
+<div class="header">
+
+USER MANAGEMENT
+
+</div>
+
+<div class="container">
+
+<?php echo $message; ?>
+
+<div class="card">
+
+<table>
+
+<tr>
+
+<th>ID</th>
+<th>Full Name</th>
+<th>Email</th>
+<th>Wallet</th>
+<th>Fund Wallet</th>
+
+</tr>
+
+<?php
+
+$users =
+mysqli_query(
+$conn,
+"SELECT * FROM users
+ORDER BY id DESC"
+);
+
+while(
+$user =
+mysqli_fetch_assoc($users)
+)
+{
+?>
+
+<tr>
+
+<td>
+<?php echo $user['id']; ?>
+</td>
+
+<td>
+<?php echo $user['fullname']; ?>
+</td>
+
+<td>
+<?php echo $user['email']; ?>
+</td>
+
+<td>
+
+₦<?php
+
+echo number_format(
+$user['wallet_balance'],
+2
+);
+
+?>
+
+</td>
+
+<td>
+
+<form method="POST">
+
+<input
+type="hidden"
+name="user_id"
+value="<?php echo $user['id']; ?>">
+
+<input
+type="number"
+step="0.01"
+name="amount"
+placeholder="Amount"
+required>
+
+<button
+name="fund"
+class="btn btn-success">
+
+Fund
+
+</button>
+
+</form>
+
+</td>
+
+</tr>
+
+<?php
+}
+?>
+
+</table>
+
+</div>
+
+</div>
+
+</body>
+</html>

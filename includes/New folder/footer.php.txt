@@ -1,0 +1,12 @@
+<div class="footer">
+
+© <?php echo date("Y"); ?>
+
+Data Vending Website
+
+All Rights Reserved.
+
+</div>
+
+</body>
+</html>

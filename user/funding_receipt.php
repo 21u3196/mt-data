@@ -1,0 +1,84 @@
+<?php
+include_once("../config.php");
+
+if (!is_logged_in()) {
+    redirect("login.php");
+}
+
+$user = get_current_user_data();
+$funding = $_SESSION['last_funding'] ?? null;
+
+if (!$funding) {
+    redirect("dashboard.php");
+}
+
+$page_title = "Funding Receipt";
+include_once("../includes/header.php");
+include_once("../includes/navbar.php");
+?>
+
+<div class="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100 relative">
+        
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-3xl shadow-lg shadow-emerald-500/20 mb-4 animate-bounce">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <h1 class="font-heading text-2xl font-extrabold text-slate-900 tracking-tight">Wallet Funded!</h1>
+            <p class="text-xs text-slate-500 mt-1">Ref: <span class="font-mono font-bold text-slate-700"><?php echo htmlspecialchars($funding['reference']); ?></span></p>
+        </div>
+
+        <!-- Receipt Box -->
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3.5 text-sm mb-8">
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Payment Channel:</span>
+                <span class="font-bold text-slate-900 flex items-center gap-1.5">
+                    <i class="fa-solid fa-shield-check text-emerald-600"></i>
+                    <?php echo htmlspecialchars($funding['payment_method']); ?>
+                </span>
+            </div>
+
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Amount Credited:</span>
+                <span class="font-extrabold text-emerald-600 text-base">
+                    +₦<?php echo number_format($funding['amount'], 2); ?>
+                </span>
+            </div>
+
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Previous Balance:</span>
+                <span class="text-slate-700 font-mono font-semibold">₦<?php echo number_format($funding['old_balance'], 2); ?></span>
+            </div>
+
+            <div class="border-t border-slate-200 pt-3 flex justify-between items-center">
+                <span class="text-slate-700 font-bold">New Wallet Balance:</span>
+                <span class="font-extrabold text-brand-600 text-lg">₦<?php echo number_format($funding['new_balance'], 2); ?></span>
+            </div>
+
+            <div class="flex justify-between items-center text-xs text-slate-400 pt-1">
+                <span>Processed At:</span>
+                <span><?php echo date('M d, Y H:i:s', strtotime($funding['date'])); ?></span>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="space-y-3">
+            <a href="dashboard.php#buydata" class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-brand-600 to-accent-600 hover:from-brand-500 hover:to-accent-500 text-white font-bold text-sm shadow-lg shadow-brand-500/25 transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-bolt"></i> Buy Data / Airtime Now
+            </a>
+
+            <div class="grid grid-cols-2 gap-3">
+                <a href="fund_wallet.php" class="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors text-center">
+                    <i class="fa-solid fa-plus mr-1"></i> Fund Again
+                </a>
+                <a href="dashboard.php" class="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors text-center">
+                    <i class="fa-solid fa-house mr-1"></i> Dashboard
+                </a>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<?php include_once("../includes/footer.php"); ?>

@@ -1,0 +1,456 @@
+<?php
+
+include("../config.php");
+
+if(!isset($_SESSION['user_id']))
+{
+    header("Location: login.php");
+    exit();
+}
+
+$user_id = $_SESSION['user_id'];
+
+$user_query = mysqli_query(
+    $conn,
+    "SELECT * FROM users WHERE id='$user_id'"
+);
+
+$user = mysqli_fetch_assoc($user_query);
+
+$wallet_balance = $user['wallet_balance'];
+
+?>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>User Dashboard</title>
+
+<link rel="stylesheet"
+href="../assets/css/style.css">
+
+<script src="../assets/js/network-logo.js"></script>
+
+</head>
+
+<body>
+
+<div class="header">
+
+DATA VENDING USER DASHBOARD
+
+</div>
+
+<div class="sidebar">
+
+<ul>
+
+<li>
+<a href="dashboard.php">
+Dashboard
+</a>
+</li>
+
+<li>
+<a href="#buydata">
+Buy Data
+</a>
+</li>
+
+<li>
+<a href="#buyairtime">
+Buy Airtime
+</a>
+</li>
+
+<li>
+<a href="#cable">
+Cable TV
+</a>
+</li>
+
+<li>
+<a href="../logout.php">
+Logout
+</a>
+</li>
+
+</ul>
+
+</div>
+
+<div class="content">
+
+<div class="dashboard-box">
+
+<h2>
+
+Welcome,
+
+<?php echo $user['fullname']; ?>
+
+</h2>
+
+</div>
+
+<div class="dashboard-box">
+
+<h3>
+
+Wallet Balance
+
+</h3>
+
+<br>
+
+<h1>
+
+₦<?php echo number_format($wallet_balance,2); ?>
+
+</h1>
+
+</div>
+
+<!-- DATA PURCHASE SECTION -->
+
+<div
+class="dashboard-box"
+id="buydata">
+
+<h3>
+
+Purchase Data
+
+</h3>
+
+<br>
+
+<form
+action="purchase_data.php"
+method="POST">
+
+<label>
+
+Select Network
+
+</label>
+
+<select
+name="network"
+id="network"
+class="form-control"
+onchange="showNetworkLogo()"
+required>
+
+<option value="">
+Select Network
+</option>
+
+<option value="MTN">
+MTN
+</option>
+
+<option value="Airtel">
+Airtel
+</option>
+
+<option value="Glo">
+Glo
+</option>
+
+<option value="9mobile">
+9mobile
+</option>
+
+</select>
+
+<img
+src=""
+id="networkLogo"
+class="network-logo">
+
+<label>
+
+Phone Number
+
+</label>
+
+<input
+type="text"
+name="phone"
+class="form-control"
+required>
+
+<label>
+
+Select Data Plan
+
+</label>
+
+<select
+name="plan"
+class="form-control">
+
+<?php
+
+$plans =
+mysqli_query(
+$conn,
+"SELECT * FROM data_plans"
+);
+
+while(
+$row=
+mysqli_fetch_assoc($plans)
+)
+{
+?>
+
+<option
+value="<?php echo $row['id']; ?>">
+
+<?php
+
+echo $row['plan_name'];
+
+?>
+
+-
+
+₦<?php
+
+echo number_format(
+$row['amount'],
+2
+);
+
+?>
+
+</option>
+
+<?php
+}
+?>
+
+</select>
+
+<button
+type="submit"
+class="btn btn-primary">
+
+Buy Data
+
+</button>
+
+</form>
+
+</div>
+
+<!-- AIRTIME -->
+
+<div
+class="dashboard-box"
+id="buyairtime">
+
+<h3>
+
+Buy Airtime
+
+</h3>
+
+<br>
+
+<form
+action="purchase_airtime.php"
+method="POST">
+
+<label>
+
+Network
+
+</label>
+
+<select
+class="form-control"
+name="network">
+
+<option>MTN</option>
+
+<option>Airtel</option>
+
+<option>Glo</option>
+
+<option>9mobile</option>
+
+</select>
+
+<label>
+
+Phone Number
+
+</label>
+
+<input
+type="text"
+name="phone"
+class="form-control">
+
+<label>
+
+Amount
+
+</label>
+
+<input
+type="number"
+name="amount"
+class="form-control">
+
+<button
+class="btn btn-success">
+
+Purchase Airtime
+
+</button>
+
+</form>
+
+</div>
+
+<!-- CABLE TV -->
+
+<div
+class="dashboard-box"
+id="cable">
+
+<h3>
+
+Cable Subscription
+
+</h3>
+
+<br>
+
+<form
+action="subscribe_cable.php"
+method="POST">
+
+<label>
+
+Provider
+
+</label>
+
+<select
+name="provider"
+class="form-control">
+
+<option>DSTV</option>
+
+<option>GOTV</option>
+
+<option>Startimes</option>
+
+</select>
+
+<label>
+
+Smart Card Number
+
+</label>
+
+<input
+type="text"
+name="smartcard"
+class="form-control">
+
+<button
+class="btn btn-warning">
+
+Subscribe
+
+</button>
+
+</form>
+
+</div>
+
+<!-- TRANSACTION HISTORY -->
+
+<div class="dashboard-box">
+
+<h3>
+
+Transaction History
+
+</h3>
+
+<br>
+
+<table>
+
+<tr>
+
+<th>ID</th>
+
+<th>Service</th>
+
+<th>Amount</th>
+
+<th>Date</th>
+
+</tr>
+
+<?php
+
+$history =
+mysqli_query(
+$conn,
+"SELECT * FROM transactions
+WHERE user_id='$user_id'
+ORDER BY id DESC"
+);
+
+while(
+$row=
+mysqli_fetch_assoc($history)
+)
+{
+?>
+
+<tr>
+
+<td>
+<?php echo $row['id']; ?>
+</td>
+
+<td>
+<?php echo $row['description']; ?>
+</td>
+
+<td>
+₦<?php echo number_format($row['amount'],2); ?>
+</td>
+
+<td>
+<?php echo $row['transaction_date']; ?>
+</td>
+
+</tr>
+
+<?php
+}
+?>
+
+</table>
+
+</div>
+
+</div>
+
+</body>
+</html>

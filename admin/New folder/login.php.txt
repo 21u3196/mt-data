@@ -1,0 +1,128 @@
+<?php
+
+include("../config.php");
+
+$message = "";
+
+if(isset($_POST['login']))
+{
+
+    $username = mysqli_real_escape_string(
+        $conn,
+        $_POST['username']
+    );
+
+    $password = mysqli_real_escape_string(
+        $conn,
+        $_POST['password']
+    );
+
+    $query = mysqli_query(
+        $conn,
+        "SELECT * FROM admins
+        WHERE username='$username'
+        AND password='$password'"
+    );
+
+    if(mysqli_num_rows($query) > 0)
+    {
+
+        $admin = mysqli_fetch_assoc($query);
+
+        $_SESSION['admin_id']
+        =
+        $admin['id'];
+
+        $_SESSION['admin_name']
+        =
+        $admin['fullname'];
+
+        header(
+            "Location: dashboard.php"
+        );
+
+        exit();
+
+    }
+    else
+    {
+
+        $message =
+        "<div class='alert-danger'>
+        Invalid Admin Login
+        </div>";
+
+    }
+
+}
+
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="UTF-8">
+
+<title>Admin Login</title>
+
+<link rel="stylesheet"
+href="../assets/css/style.css">
+
+</head>
+
+<body>
+
+<div class="header">
+
+ADMIN LOGIN
+
+</div>
+
+<div class="container">
+
+<div class="card">
+
+<h2 class="page-title">
+
+Administrator Access
+
+</h2>
+
+<?php echo $message; ?>
+
+<form method="POST">
+
+<label>Username</label>
+
+<input
+type="text"
+name="username"
+class="form-control"
+required>
+
+<label>Password</label>
+
+<input
+type="password"
+name="password"
+class="form-control"
+required>
+
+<button
+type="submit"
+name="login"
+class="btn btn-danger">
+
+Login
+
+</button>
+
+</form>
+
+</div>
+
+</div>
+
+</body>
+</html>

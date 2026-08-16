@@ -1,0 +1,139 @@
+<?php
+
+include("../config.php");
+
+$message = "";
+
+if(isset($_POST['login']))
+{
+
+$email =
+mysqli_real_escape_string(
+$conn,
+$_POST['email']
+);
+
+$password =
+mysqli_real_escape_string(
+$conn,
+$_POST['password']
+);
+
+$query =
+mysqli_query(
+$conn,
+"SELECT * FROM users
+WHERE email='$email'
+AND password='$password'"
+);
+
+if(mysqli_num_rows($query)>0)
+{
+
+$user =
+mysqli_fetch_assoc($query);
+
+$_SESSION['user_id']
+=
+$user['id'];
+
+$_SESSION['fullname']
+=
+$user['fullname'];
+
+header(
+"Location: dashboard.php"
+);
+
+exit();
+
+}
+else
+{
+
+$message =
+"<div class='alert-danger'>
+Invalid Login Details
+</div>";
+
+}
+
+}
+?>
+
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<title>User Login</title>
+
+<link rel="stylesheet"
+href="../assets/css/style.css">
+
+</head>
+
+<body>
+
+<div class="header">
+
+USER LOGIN
+
+</div>
+
+<div class="container">
+
+<div class="card">
+
+<h2 class="page-title">
+
+Account Login
+
+</h2>
+
+<?php echo $message; ?>
+
+<form method="POST">
+
+<label>Email</label>
+
+<input
+type="email"
+name="email"
+class="form-control"
+required>
+
+<label>Password</label>
+
+<input
+type="password"
+name="password"
+class="form-control"
+required>
+
+<button
+type="submit"
+name="login"
+class="btn btn-primary">
+
+Login
+
+</button>
+
+</form>
+
+<br>
+
+<a href="register.php">
+
+Create New Account
+
+</a>
+
+</div>
+
+</div>
+
+</body>
+</html>
