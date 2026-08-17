@@ -115,13 +115,7 @@ include_once("../includes/navbar.php");
                 </div>
             </div>
 
-            <!-- Automated Confirmation Acknowledgements -->
-            <div class="rounded-2xl bg-indigo-50/70 border border-indigo-100 p-4 mb-6 space-y-2.5">
-                <div class="flex items-center justify-between text-xs font-bold text-indigo-900">
-                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-bell-ring text-indigo-600"></i> Automated Acknowledgement</span>
-                    <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px]">Dispatched</span>
-                </div>
-            </div>
+        
 
             <a href="dashboard.php" class="w-full py-3.5 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
                 <i class="fa-solid fa-house"></i> Return to Dashboard
