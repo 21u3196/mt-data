@@ -35,30 +35,30 @@ include_once("../includes/header.php");
 include_once("../includes/navbar.php");
 ?>
 
-<div class="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-zinc-50">
-    <div class="w-full max-w-md bg-white rounded-2xl p-8 sm:p-10 shadow-sm border border-zinc-200">
+<div class="flex-1 flex items-center justify-center py-6 sm:py-12 px-3.5 sm:px-6 lg:px-8 bg-zinc-50 min-h-[calc(100vh-4rem)]">
+    <div class="w-full max-w-md bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-10 shadow-xs border border-zinc-200">
         
         <!-- Header -->
-        <div class="text-center mb-8">
-            <div class="w-12 h-12 rounded-xl bg-red-600 text-white flex items-center justify-center mx-auto text-lg shadow-sm mb-4">
+        <div class="text-center mb-6 sm:mb-8">
+            <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-red-600 text-white flex items-center justify-center mx-auto text-base sm:text-lg shadow-xs mb-3 sm:mb-4">
                 <i class="fa-solid fa-shield-halved"></i>
             </div>
-            <h1 class="font-heading text-2xl font-bold text-zinc-900 tracking-tight">Admin Terminal</h1>
+            <h1 class="font-heading text-xl sm:text-2xl font-bold text-zinc-900 tracking-tight">Admin Terminal</h1>
             <p class="text-xs sm:text-sm text-zinc-500 mt-1">Super administrator access control</p>
         </div>
 
         <?php echo $message; ?>
 
-        <form method="POST" autocomplete="on" class="space-y-4">
+        <form method="POST" autocomplete="on" class="space-y-3.5 sm:space-y-4">
             <div>
                 <label class="block text-xs font-bold text-zinc-700 uppercase tracking-wider mb-1.5" for="adminUsername">
                     Admin Username
                 </label>
-                <div class="relative rounded-xl border border-zinc-300 bg-white focus-within:ring-2 focus-within:ring-zinc-900 focus-within:border-zinc-900 transition-all">
+                <div class="relative rounded-xl border border-zinc-300 bg-zinc-50/50 hover:bg-white focus-within:bg-white focus-within:ring-2 focus-within:ring-zinc-900 focus-within:border-zinc-900 transition-all">
                     <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400 text-sm">
                         <i class="fa-solid fa-user-shield"></i>
                     </span>
-                    <input type="text" id="adminUsername" name="username" class="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 bg-transparent border-0 focus:outline-none focus:ring-0" placeholder="admin" required>
+                    <input type="text" id="adminUsername" name="username" class="w-full pl-10 pr-4 py-2.5 sm:py-3 rounded-xl text-sm sm:text-base text-zinc-900 placeholder-zinc-400 bg-transparent border-0 focus:outline-none focus:ring-0" placeholder="admin" required>
                 </div>
             </div>
 
@@ -66,26 +66,43 @@ include_once("../includes/navbar.php");
                 <label class="block text-xs font-bold text-zinc-700 uppercase tracking-wider mb-1.5" for="adminPassword">
                     Admin Password
                 </label>
-                <div class="relative rounded-xl border border-zinc-300 bg-white focus-within:ring-2 focus-within:ring-zinc-900 focus-within:border-zinc-900 transition-all">
+                <div class="relative rounded-xl border border-zinc-300 bg-zinc-50/50 hover:bg-white focus-within:bg-white focus-within:ring-2 focus-within:ring-zinc-900 focus-within:border-zinc-900 transition-all">
                     <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400 text-sm">
                         <i class="fa-solid fa-lock"></i>
                     </span>
-                    <input type="password" id="adminPassword" name="password" class="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 bg-transparent border-0 focus:outline-none focus:ring-0" placeholder="••••••••" required>
+                    <input type="password" id="adminPassword" name="password" class="w-full pl-10 pr-10 py-2.5 sm:py-3 rounded-xl text-sm sm:text-base text-zinc-900 placeholder-zinc-400 bg-transparent border-0 focus:outline-none focus:ring-0" placeholder="••••••••" required>
+                    <button type="button" onclick="togglePasswordVisibility('adminPassword', this)" class="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 focus:outline-none">
+                        <i class="fa-regular fa-eye text-sm"></i>
+                    </button>
                 </div>
             </div>
 
-            <button type="submit" name="login" class="w-full mt-2 py-3 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
+            <button type="submit" name="login" class="w-full mt-2 py-3 sm:py-3.5 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 active:scale-[0.99] text-white font-bold text-sm sm:text-base shadow-xs transition-all flex items-center justify-center gap-2">
                 <i class="fa-solid fa-right-to-bracket"></i> Authenticate as Admin
             </button>
         </form>
 
-        <div class="mt-8 pt-6 border-t border-slate-100 text-center">
-            <a href="../index.php" class="text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors inline-flex items-center gap-1.5">
+        <div class="mt-6 sm:mt-8 pt-5 sm:pt-6 border-t border-zinc-100 text-center">
+            <a href="../index.php" class="text-xs sm:text-sm font-semibold text-zinc-500 hover:text-zinc-900 transition-colors inline-flex items-center gap-1.5">
                 <i class="fa-solid fa-arrow-left"></i> Return to Homepage
             </a>
         </div>
 
     </div>
 </div>
+
+<script>
+function togglePasswordVisibility(fieldId, btn) {
+    const field = document.getElementById(fieldId);
+    const icon = btn.querySelector('i');
+    if (field.type === 'password') {
+        field.type = 'text';
+        icon.className = 'fa-regular fa-eye-slash text-sm';
+    } else {
+        field.type = 'password';
+        icon.className = 'fa-regular fa-eye text-sm';
+    }
+}
+</script>
 
 <?php include_once("../includes/footer.php"); ?>

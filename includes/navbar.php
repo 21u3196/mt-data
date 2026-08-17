@@ -203,12 +203,22 @@ if (is_logged_in() && $user) {
 
                 <?php else: ?>
                     <!-- Guest Auth Links Group -->
-                    <a href="<?php echo $root; ?>user/login.php" class="px-4 py-2 rounded-xl text-sm font-semibold text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100 transition-all">
-                        Sign In
-                    </a>
-                    <a href="<?php echo $root; ?>user/register.php" class="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-zinc-900 hover:bg-zinc-800 shadow-sm transition-all">
-                        <i class="fa-solid fa-user-plus mr-1"></i> Register
-                    </a>
+                    <?php if ($current_page === 'login.php'): ?>
+                        <a href="<?php echo $root; ?>user/register.php" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-bold text-white bg-zinc-900 hover:bg-zinc-800 shadow-xs transition-all">
+                            <i class="fa-solid fa-user-plus text-xs"></i> <span>Register</span>
+                        </a>
+                    <?php elseif ($current_page === 'register.php'): ?>
+                        <a href="<?php echo $root; ?>user/login.php" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-bold text-zinc-900 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 shadow-xs transition-all">
+                            <i class="fa-solid fa-arrow-right-to-bracket text-xs"></i> <span>Sign In</span>
+                        </a>
+                    <?php else: ?>
+                        <a href="<?php echo $root; ?>user/login.php" class="hidden sm:inline-flex px-3.5 py-2 rounded-xl text-sm font-semibold text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100 transition-all">
+                            Sign In
+                        </a>
+                        <a href="<?php echo $root; ?>user/register.php" class="inline-flex items-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-bold text-white bg-zinc-900 hover:bg-zinc-800 shadow-xs transition-all">
+                            <i class="fa-solid fa-user-plus text-xs sm:mr-1"></i> <span>Get Started</span>
+                        </a>
+                    <?php endif; ?>
                     <a href="<?php echo $root; ?>admin/login.php" class="hidden sm:inline-flex px-3 py-2 rounded-xl text-xs font-bold text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-all" title="Admin Terminal">
                         <i class="fa-solid fa-lock mr-1"></i> Admin
                     </a>
