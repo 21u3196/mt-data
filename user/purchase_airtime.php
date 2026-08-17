@@ -121,25 +121,6 @@ include_once("../includes/navbar.php");
                     <span class="flex items-center gap-1.5"><i class="fa-solid fa-bell-ring text-indigo-600"></i> Automated Acknowledgement</span>
                     <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px]">Dispatched</span>
                 </div>
-                
-                <div class="space-y-1.5 text-xs text-slate-600 pt-1">
-                    <div class="flex items-center gap-2">
-                        <i class="fa-solid fa-comment-sms text-emerald-600 text-xs w-4"></i>
-                        <span>SMS to <strong class="text-slate-800"><?php echo htmlspecialchars($phone); ?></strong>:</span>
-                        <span class="ml-auto text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">Sent (Simulated)</span>
-                    </div>
-                    <?php if (!empty($ack_info['sms_message'])): ?>
-                        <div class="bg-white/80 p-2.5 rounded-xl border border-indigo-100/80 font-mono text-[11px] text-slate-700 leading-relaxed shadow-xs">
-                            <span class="text-indigo-600 font-bold">MT-DATA:</span> <?php echo htmlspecialchars($ack_info['sms_message']); ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <div class="flex items-center gap-2 pt-1 text-slate-600">
-                        <i class="fa-solid fa-envelope text-brand-600 text-xs w-4"></i>
-                        <span>Email to <strong class="text-slate-800"><?php echo htmlspecialchars($user['email'] ?? 'Account'); ?></strong>:</span>
-                        <span class="ml-auto text-[10px] font-bold text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded border border-brand-200">Resend Dispatched</span>
-                    </div>
-                </div>
             </div>
 
             <a href="dashboard.php" class="w-full py-3.5 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2">

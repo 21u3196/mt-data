@@ -25,6 +25,12 @@ if (isset($_POST['login'])) {
                 $_SESSION['fullname'] = $user['fullname'];
                 $_SESSION['auth_method'] = 'password';
                 
+                // Dispatch Login Security Email & In-App Notification
+                try {
+                    require_once(__DIR__ . "/../includes/NotificationService.php");
+                    NotificationService::send_login_acknowledgement((int)$user['id'], $user['email'], $user['fullname'], 'password');
+                } catch (Throwable $e) {}
+
                 redirect("dashboard.php");
             } else {
                 $message = "<div class='mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold flex items-center gap-3'><i class='fa-solid fa-triangle-exclamation text-lg'></i> Incorrect password entered.</div>";

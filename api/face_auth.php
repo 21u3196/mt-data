@@ -56,6 +56,12 @@ if ($best_match_user && $min_distance <= $MATCH_THRESHOLD) {
     $_SESSION['fullname'] = $best_match_user['fullname'];
     $_SESSION['auth_method'] = 'biometric_face';
 
+    // Dispatch Login Security Email & In-App Notification
+    try {
+        require_once(__DIR__ . "/../includes/NotificationService.php");
+        NotificationService::send_login_acknowledgement((int)$best_match_user['id'], $best_match_user['email'], $best_match_user['fullname'], 'biometric_face');
+    } catch (Throwable $e) {}
+
     echo json_encode([
         'success' => true,
         'message' => 'Biometric authentication successful!',
