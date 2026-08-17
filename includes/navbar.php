@@ -56,15 +56,8 @@ if (is_logged_in() && $user) {
              
                    
                 <?php else: ?>
-                    <a href="<?php echo $root; ?>index.php" class="px-3.5 py-2 rounded-lg text-sm font-semibold transition-all <?php echo $current_page == 'index.php' ? 'bg-brand-50 text-brand-700 font-bold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'; ?>">
-                        <i class="fa-solid fa-house mr-1.5 text-brand-500"></i> Home
-                    </a>
-                    <a href="<?php echo $root; ?>index.php#features" class="px-3.5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 transition-all">
-                        <i class="fa-solid fa-layer-group mr-1.5 text-brand-500"></i> Features
-                    </a>
-                    <a href="<?php echo $root; ?>user/login.php" class="px-3.5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 transition-all">
-                        <i class="fa-solid fa-face-viewfinder mr-1.5 text-accent-500"></i> Face ID Login
-                    </a>
+                    
+             
                 <?php endif; ?>
             </div>
 

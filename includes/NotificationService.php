@@ -39,19 +39,30 @@ class NotificationService {
      * Get QStack API Key from env or .env file
      */
     public static function getQstackApiKey(): string {
-        $key = getenv('QSTACK_API_KEY');
+        $key = getenv('QSTACK_NOTIFICATION_API_KEY') ?: getenv('QSTACK_API_KEY');
         if ($key) return trim($key);
 
         $envFile = __DIR__ . '/../.env';
         if (file_exists($envFile)) {
             $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
             foreach ($lines as $line) {
-                if (strpos(trim($line), 'QSTACK_API_KEY=') === 0) {
-                    return trim(substr(trim($line), 15));
+                $line = trim($line);
+                if (strpos($line, 'QSTACK_NOTIFICATION_API_KEY=') === 0) {
+                    return trim(substr($line, 28));
+                }
+                if (strpos($line, 'QSTACK_API_KEY=') === 0) {
+                    return trim(substr($line, 15));
                 }
             }
         }
         return '';
+    }
+
+    /**
+     * Get QStack Notification Server URL
+     */
+    public static function getQstackServerUrl(): string {
+        return getenv('QSTACK_NOTIFICATION_SERVER_URL') ?: self::QSTACK_SERVER_URL;
     }
 
     /**
@@ -115,7 +126,7 @@ class NotificationService {
             $headers[] = 'X-API-Key: ' . $apiKey;
         }
 
-        $ch = curl_init(self::QSTACK_SERVER_URL);
+        $ch = curl_init(self::getQstackServerUrl());
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));

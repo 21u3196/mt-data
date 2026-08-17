@@ -1,27 +1,18 @@
 <?php
+include_once(__DIR__ . '/config.php');
+require_once(__DIR__ . '/includes/NotificationService.php');
 
-require 'vendor/autoload.php';
+$apiKey = NotificationService::getResendApiKey();
 
-use Resend\Resend;
-
-$apiKey = getenv('RESEND_API');
-if (!$apiKey && file_exists(__DIR__ . '/.env')) {
-    $lines = file(__DIR__ . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (strpos(trim($line), 'RESEND_API=') === 0) {
-            $apiKey = trim(substr(trim($line), 11));
-            break;
-        }
-    }
+if (!empty($apiKey)) {
+    $res = NotificationService::send_resend_email(
+        ['21u3196@student.mau.edu.ng'],
+        'Hello from MT Data',
+        '<p>Congrats on sending your <strong>first email notification</strong> from MT Data!</p>'
+    );
+    header('Content-Type: application/json');
+    echo json_encode($res);
+} else {
+    echo "No RESEND_API key configured.";
 }
 
-if ($apiKey) {
-    $resend = Resend::client($apiKey);
-
-    $resend->emails->send([
-      'from' => 'onboarding@resend.dev',
-      'to' => '21u3196@student.mau.edu.ng',
-      'subject' => 'Hello World',
-      'html' => '<p>Congrats on sending your <strong>first email</strong>!</p>'
-    ]);
-}

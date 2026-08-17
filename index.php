@@ -29,10 +29,10 @@ include_once("includes/navbar.php");
                 </a>
             <?php else: ?>
                 <a href="user/login.php" class="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-4 rounded-2xl bg-zinc-900 text-white font-bold text-base shadow-sm hover:bg-zinc-800 hover:scale-[1.02] transition-all">
-                    <i class="fa-solid fa-face-viewfinder text-zinc-300"></i> Face ID Sign In
+                    <i class="fa-solid fa-face-viewfinder text-zinc-300"></i> Sign In
                 </a>
                 <a href="user/register.php" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl bg-zinc-200 hover:bg-zinc-300 text-zinc-900 font-bold text-base shadow-sm hover:scale-[1.02] transition-all">
-                    <i class="fa-solid fa-bolt"></i> Get Started Free
+                    <i class="fa-solid fa-bolt"></i> Get Started
                 </a>
             <?php endif; ?>
         </div>
