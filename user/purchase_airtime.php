@@ -56,6 +56,22 @@ try {
 
         mysqli_commit($conn);
         $purchase_success = true;
+
+        // Automated multi-channel acknowledgement & simulated SMS dispatch
+        require_once(__DIR__ . "/../includes/NotificationService.php");
+        $ack_info = NotificationService::send_transaction_acknowledgement([
+            'user_id'       => $user_id,
+            'user_email'    => $user['email'] ?? '',
+            'user_fullname' => $user['fullname'] ?? 'Valued Customer',
+            'transaction_id'=> $tx_id,
+            'service_type'  => 'Airtime',
+            'title'         => "$network Airtime Recharge",
+            'description'   => "$network ₦" . number_format($amount, 2) . " Airtime",
+            'recipient'     => $phone,
+            'amount'        => $amount,
+            'new_balance'   => $new_balance,
+            'date'          => date('Y-m-d H:i:s')
+        ]);
     }
 } catch (Exception $e) {
     mysqli_rollback($conn);
@@ -80,7 +96,7 @@ include_once("../includes/navbar.php");
                 <p class="text-xs text-slate-500 mt-1">Receipt Ref: <span class="font-mono font-bold text-slate-700">#TX-<?php echo str_pad($tx_id, 5, '0', STR_PAD_LEFT); ?></span></p>
             </div>
 
-            <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3 text-sm mb-6">
+            <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3 text-sm mb-5">
                 <div class="flex justify-between text-slate-600">
                     <span>Network:</span>
                     <span class="font-bold text-slate-900"><?php echo htmlspecialchars($network); ?></span>
@@ -99,7 +115,34 @@ include_once("../includes/navbar.php");
                 </div>
             </div>
 
-            <a href="dashboard.php" class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-brand-600 to-accent-600 text-white font-bold text-sm shadow-lg shadow-brand-500/25 hover:shadow-glow-brand transition-all flex items-center justify-center gap-2">
+            <!-- Automated Confirmation Acknowledgements -->
+            <div class="rounded-2xl bg-indigo-50/70 border border-indigo-100 p-4 mb-6 space-y-2.5">
+                <div class="flex items-center justify-between text-xs font-bold text-indigo-900">
+                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-bell-ring text-indigo-600"></i> Automated Acknowledgement</span>
+                    <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px]">Dispatched</span>
+                </div>
+                
+                <div class="space-y-1.5 text-xs text-slate-600 pt-1">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-comment-sms text-emerald-600 text-xs w-4"></i>
+                        <span>SMS to <strong class="text-slate-800"><?php echo htmlspecialchars($phone); ?></strong>:</span>
+                        <span class="ml-auto text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">Sent (Simulated)</span>
+                    </div>
+                    <?php if (!empty($ack_info['sms_message'])): ?>
+                        <div class="bg-white/80 p-2.5 rounded-xl border border-indigo-100/80 font-mono text-[11px] text-slate-700 leading-relaxed shadow-xs">
+                            <span class="text-indigo-600 font-bold">MT-DATA:</span> <?php echo htmlspecialchars($ack_info['sms_message']); ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="flex items-center gap-2 pt-1 text-slate-600">
+                        <i class="fa-solid fa-envelope text-brand-600 text-xs w-4"></i>
+                        <span>Email to <strong class="text-slate-800"><?php echo htmlspecialchars($user['email'] ?? 'Account'); ?></strong>:</span>
+                        <span class="ml-auto text-[10px] font-bold text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded border border-brand-200">Resend Dispatched</span>
+                    </div>
+                </div>
+            </div>
+
+            <a href="dashboard.php" class="w-full py-3.5 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
                 <i class="fa-solid fa-house"></i> Return to Dashboard
             </a>
 

@@ -74,7 +74,7 @@ $root = $is_in_subfolder ? "../" : "./";
     </script>
     
     <!-- Biometric Face Engine -->
-    <script src="<?php echo $root; ?>assets/js/biometric.js"></script>
+    <script src="<?php echo $root; ?>assets/js/biometric.js?v=<?php echo time(); ?>"></script>
 
     <style>
         /* Smooth Custom Scrollbar */

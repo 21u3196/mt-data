@@ -129,7 +129,7 @@ include_once("../includes/navbar.php");
                         <span id="dataPriceDisplay" class="font-heading text-sm font-extrabold text-brand-700">₦0.00</span>
                     </div>
 
-                    <button type="submit" id="dataSubmitBtn" class="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-brand-600 to-accent-600 hover:from-brand-500 hover:to-accent-500 text-white font-bold text-sm shadow-md shadow-brand-500/20 hover:shadow-glow-brand transition-all flex items-center justify-center gap-2">
+                    <button type="submit" id="dataSubmitBtn" class="w-full mt-2 py-3 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
                         <i class="fa-solid fa-bolt"></i> <span>Purchase Data</span>
                     </button>
                 </form>
@@ -245,20 +245,73 @@ include_once("../includes/navbar.php");
         </div>
 
         <!-- Recent Transaction History Table -->
+        <!-- Transactions Section (Responsive Table on Desktop & Native Cards on Mobile) -->
         <div class="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden" id="history">
-            <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+            <div class="p-6 border-b border-slate-100 flex items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center text-sm">
-                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-receipt"></i>
                     </div>
                     <div>
-                        <h3 class="font-heading text-base font-bold text-slate-900">Transaction History</h3>
-                        <p class="text-xs text-slate-500">Recent vending receipts and wallet activity</p>
+                        <h3 class="font-heading text-base font-bold text-slate-900">Transactions</h3>
+                        <p class="text-xs text-slate-500">Recent purchases and digital wallet top-up transactions</p>
                     </div>
                 </div>
             </div>
 
-            <div class="overflow-x-auto">
+            <!-- Mobile View: Modern Transaction Cards (Visible on screens < 768px) -->
+            <div class="block md:hidden p-4 space-y-3 bg-slate-50/50">
+                <?php
+                $hist_query_mobile = mysqli_query($conn, "SELECT * FROM transactions WHERE user_id='$user_id' ORDER BY id DESC LIMIT 15");
+                if (mysqli_num_rows($hist_query_mobile) > 0):
+                    while ($tx = mysqli_fetch_assoc($hist_query_mobile)):
+                        $badge_class = $tx['service_type'] == 'Data' 
+                            ? 'bg-brand-50 text-brand-700 border-brand-200' 
+                            : ($tx['service_type'] == 'Airtime' 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                : 'bg-amber-50 text-amber-700 border-amber-200');
+                ?>
+                    <div class="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border <?php echo $badge_class; ?>">
+                                <?php echo htmlspecialchars($tx['service_type']); ?>
+                            </span>
+                            <span class="font-heading font-extrabold text-sm text-slate-900">
+                                ₦<?php echo number_format($tx['amount'], 2); ?>
+                            </span>
+                        </div>
+
+                        <div>
+                            <p class="text-xs font-bold text-slate-900"><?php echo htmlspecialchars($tx['description']); ?></p>
+                            <?php if (!empty($tx['phone_number'])): ?>
+                                <p class="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                    <i class="fa-solid fa-phone text-[10px] text-slate-400"></i>
+                                    <span><?php echo htmlspecialchars($tx['phone_number']); ?></span>
+                                </p>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                            <span class="font-mono text-slate-400">#TX-<?php echo str_pad($tx['id'], 5, '0', STR_PAD_LEFT); ?></span>
+                            <span class="inline-flex items-center gap-1 text-emerald-600 font-bold">
+                                <i class="fa-solid fa-circle-check text-[10px]"></i> Success
+                            </span>
+                            <span><?php echo date('M d, H:i', strtotime($tx['transaction_date'])); ?></span>
+                        </div>
+                    </div>
+                <?php
+                    endwhile;
+                else:
+                ?>
+                    <div class="p-8 text-center text-slate-400 bg-white rounded-2xl border border-slate-200">
+                        <i class="fa-regular fa-folder-open text-2xl mb-2 block text-slate-300"></i>
+                        <p class="text-xs font-semibold">No transactions recorded yet.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Desktop View: Clean High-Contrast Table (Visible on screens >= 768px) -->
+            <div class="hidden md:block overflow-x-auto">
                 <table class="w-full text-left text-sm">
                     <thead class="bg-slate-50 border-b border-slate-200/80 text-xs font-bold text-slate-600 uppercase tracking-wider">
                         <tr>
@@ -278,14 +331,14 @@ include_once("../includes/navbar.php");
                             while ($tx = mysqli_fetch_assoc($hist_query)):
                         ?>
                             <tr class="hover:bg-slate-50/80 transition-colors">
-                                <td class="px-6 py-4 font-bold text-slate-900">#TX-<?php echo str_pad($tx['id'], 5, '0', STR_PAD_LEFT); ?></td>
+                                <td class="px-6 py-4 font-bold text-slate-900 font-mono">#TX-<?php echo str_pad($tx['id'], 5, '0', STR_PAD_LEFT); ?></td>
                                 <td class="px-6 py-4">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold <?php echo $tx['service_type'] == 'Data' ? 'bg-brand-50 text-brand-700 border border-brand-200' : ($tx['service_type'] == 'Airtime' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'); ?>">
                                         <?php echo htmlspecialchars($tx['service_type']); ?>
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 font-semibold text-slate-800"><?php echo htmlspecialchars($tx['description']); ?></td>
-                                <td class="px-6 py-4 text-slate-600"><?php echo htmlspecialchars($tx['phone_number']); ?></td>
+                                <td class="px-6 py-4 text-slate-600 font-mono text-xs"><?php echo htmlspecialchars($tx['phone_number']); ?></td>
                                 <td class="px-6 py-4 font-bold text-slate-900">₦<?php echo number_format($tx['amount'], 2); ?></td>
                                 <td class="px-6 py-4">
                                     <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -308,6 +361,7 @@ include_once("../includes/navbar.php");
                     </tbody>
                 </table>
             </div>
+
         </div>
 
     </div>

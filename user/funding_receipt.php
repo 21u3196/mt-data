@@ -30,7 +30,7 @@ include_once("../includes/navbar.php");
         </div>
 
         <!-- Receipt Box -->
-        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3.5 text-sm mb-8">
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3.5 text-sm mb-5">
             <div class="flex justify-between items-center text-slate-600">
                 <span>Payment Channel:</span>
                 <span class="font-bold text-slate-900 flex items-center gap-1.5">
@@ -62,9 +62,36 @@ include_once("../includes/navbar.php");
             </div>
         </div>
 
+        <!-- Automated Confirmation Acknowledgements -->
+        <div class="rounded-2xl bg-emerald-50/70 border border-emerald-100 p-4 mb-6 space-y-2.5">
+            <div class="flex items-center justify-between text-xs font-bold text-emerald-900">
+                <span class="flex items-center gap-1.5"><i class="fa-solid fa-bell-ring text-emerald-600"></i> Automated Acknowledgement</span>
+                <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px]">Dispatched</span>
+            </div>
+            
+            <div class="space-y-1.5 text-xs text-slate-600 pt-1">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-comment-sms text-emerald-600 text-xs w-4"></i>
+                    <span>SMS to <strong class="text-slate-800"><?php echo htmlspecialchars($user['phone'] ?? 'Registered Phone'); ?></strong>:</span>
+                    <span class="ml-auto text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">Sent (Simulated)</span>
+                </div>
+                <?php if (!empty($funding['sms_message'])): ?>
+                    <div class="bg-white/80 p-2.5 rounded-xl border border-emerald-100/80 font-mono text-[11px] text-slate-700 leading-relaxed shadow-xs">
+                        <span class="text-emerald-600 font-bold">MT-DATA:</span> <?php echo htmlspecialchars($funding['sms_message']); ?>
+                    </div>
+                <?php endif; ?>
+
+                <div class="flex items-center gap-2 pt-1 text-slate-600">
+                    <i class="fa-solid fa-envelope text-brand-600 text-xs w-4"></i>
+                    <span>Email to <strong class="text-slate-800"><?php echo htmlspecialchars($user['email'] ?? 'Account'); ?></strong>:</span>
+                    <span class="ml-auto text-[10px] font-bold text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded border border-brand-200">Resend Dispatched</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Actions -->
         <div class="space-y-3">
-            <a href="dashboard.php#buydata" class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-brand-600 to-accent-600 hover:from-brand-500 hover:to-accent-500 text-white font-bold text-sm shadow-lg shadow-brand-500/25 transition-all flex items-center justify-center gap-2">
+            <a href="dashboard.php#buydata" class="w-full py-3.5 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
                 <i class="fa-solid fa-bolt"></i> Buy Data / Airtime Now
             </a>
 

@@ -5,38 +5,33 @@ include_once("includes/navbar.php");
 ?>
 
 <!-- Hero Section -->
-<section class="relative overflow-hidden pt-16 pb-20 lg:pt-24 lg:pb-32">
-    <!-- Ambient Background Glows -->
-    <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-brand-400/20 rounded-full blur-3xl pointer-events-none -z-10"></div>
-    <div class="absolute top-1/3 left-1/3 w-64 h-64 bg-accent-500/15 rounded-full blur-3xl pointer-events-none -z-10"></div>
-
+<section class="relative overflow-hidden pt-16 pb-20 lg:pt-24 lg:pb-32 bg-zinc-50/50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        
 
         <!-- Main Heading -->
-        <h1 class="font-heading text-4xl sm:text-6xl lg:text-7xl font-extrabold text-slate-900 tracking-tight max-w-4xl mx-auto leading-[1.1] mb-6">
+        <h1 class="font-heading text-4xl sm:text-6xl lg:text-7xl font-extrabold text-zinc-900 tracking-tight max-w-4xl mx-auto leading-[1.1] mb-6">
             Instant Data Top-Up with <br class="hidden sm:inline" />
-            <span class="bg-gradient-to-r from-brand-600 via-accent-500 to-brand-500 bg-clip-text text-transparent">
+            <span class="text-zinc-700">
                 Biometric Face ID
             </span>
         </h1>
 
         <!-- Subtitle -->
-        <p class="text-base sm:text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed">
+        <p class="text-base sm:text-xl text-zinc-600 max-w-2xl mx-auto mb-10 leading-relaxed">
             Automated virtual top-ups for MTN, Airtel, Glo, and 9mobile with instant 1-click passwordless biometric authentication and digital wallet management.
         </p>
 
         <!-- CTA Buttons -->
         <div class="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
             <?php if (is_logged_in()): ?>
-                <a href="user/dashboard.php" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-gradient-to-r from-brand-600 to-accent-600 text-white font-bold text-base shadow-xl shadow-brand-500/25 hover:shadow-glow-brand hover:scale-[1.02] transition-all">
+                <a href="user/dashboard.php" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-base shadow-sm hover:scale-[1.02] transition-all">
                     <i class="fa-solid fa-gauge-high"></i> Go to Dashboard
                 </a>
             <?php else: ?>
-                <a href="user/login.php" class="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-4 rounded-2xl bg-slate-900 text-white font-bold text-base shadow-lg hover:bg-slate-800 hover:scale-[1.02] transition-all">
-                    <i class="fa-solid fa-face-viewfinder text-brand-400"></i> Face ID Sign In
+                <a href="user/login.php" class="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-4 rounded-2xl bg-zinc-900 text-white font-bold text-base shadow-sm hover:bg-zinc-800 hover:scale-[1.02] transition-all">
+                    <i class="fa-solid fa-face-viewfinder text-zinc-300"></i> Face ID Sign In
                 </a>
-                <a href="user/register.php" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl bg-gradient-to-r from-brand-600 to-accent-600 text-white font-bold text-base shadow-xl shadow-brand-500/25 hover:shadow-glow-brand hover:scale-[1.02] transition-all">
+                <a href="user/register.php" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl bg-zinc-200 hover:bg-zinc-300 text-zinc-900 font-bold text-base shadow-sm hover:scale-[1.02] transition-all">
                     <i class="fa-solid fa-bolt"></i> Get Started Free
                 </a>
             <?php endif; ?>
