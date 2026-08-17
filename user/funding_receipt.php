@@ -61,12 +61,6 @@ include_once("../includes/navbar.php");
             </div>
         </div>
 
-        <!-- Status Pill -->
-        <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-2.5 mb-5 flex items-center justify-between text-xs font-semibold text-emerald-900">
-            <span class="flex items-center gap-1.5"><i class="fa-solid fa-bell text-emerald-600"></i> Notification</span>
-            <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Delivered</span>
-        </div>
-
         <!-- Action Buttons -->
         <div class="space-y-2">
             <a href="dashboard.php#buydata" class="w-full py-3 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2">

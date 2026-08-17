@@ -3,10 +3,9 @@
  * MT Data Automated Acknowledgement & Notification Engine
  * 
  * Features:
- * 1. Resend API Transactional Email Receipts
+ * 1. Resend API Transactional Email Notifications
  * 2. Real-time In-App Notification Center
- * 3. Automated SMS Acknowledgements (simulated telecom dispatch)
- * 4. QStack Notification Server Push Microservice
+ * 3. QStack Notification Server Push Microservice
  */
 
 require_once(__DIR__ . "/../config.php");
@@ -22,7 +21,6 @@ class NotificationService {
         $key = getenv('RESEND_API') ?: getenv('RESEND_API_KEY') ?: getenv('RESEND_KEY');
         if ($key) return trim($key);
 
-        // Check if .env file exists and parse it
         $envFile = __DIR__ . '/../.env';
         if (file_exists($envFile)) {
             $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -37,6 +35,15 @@ class NotificationService {
             }
         }
         return '';
+    }
+
+    /**
+     * Get Resend Sender Address (Domain or default onboarding)
+     */
+    public static function getSenderEmail(): string {
+        $from = getenv('RESEND_FROM') ?: getenv('RESEND_FROM_EMAIL') ?: getenv('MAIL_FROM_ADDRESS');
+        if ($from) return trim($from);
+        return 'MT Data <onboarding@resend.dev>';
     }
 
     /**
@@ -70,8 +77,7 @@ class NotificationService {
     }
 
     /**
-     * Sends transactional email receipt via Resend API
-     * Handles Sandbox limitation by auto-forwarding unverified domain emails to verified dev address.
+     * Sends transactional email directly to the intended recipient user via Resend API
      */
     public static function send_resend_email(array $to, string $subject, string $htmlContent, string $textContent = ''): array {
         try {
@@ -80,67 +86,46 @@ class NotificationService {
                 return ['success' => false, 'message' => 'No Resend API Key configured'];
             }
 
-            $executeRequest = function(array $recipients, string $subj, string $html, string $text) use ($apiKey) {
-                $cleanRecipients = array_values(array_unique(array_filter($recipients)));
-                if (empty($cleanRecipients)) {
-                    return ['success' => false, 'message' => 'No recipient provided'];
-                }
-
-                $payload = [
-                    'from'    => 'MT Data <onboarding@resend.dev>',
-                    'to'      => $cleanRecipients,
-                    'subject' => $subj,
-                    'html'    => $html,
-                    'text'    => $text ?: strip_tags($html)
-                ];
-
-                $ch = curl_init('https://api.resend.com/emails');
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Authorization: Bearer ' . $apiKey,
-                    'Content-Type: application/json'
-                ]);
-                curl_setopt($ch, CURLOPT_POST, 1);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 6);
-                curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
-
-                $response = @curl_exec($ch);
-                $httpCode = @curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $err = @curl_error($ch);
-                @curl_close($ch);
-
-                if ($err) {
-                    return ['success' => false, 'error' => $err];
-                }
-
-                $json = json_decode((string)$response, true);
-                if ($httpCode >= 200 && $httpCode < 300) {
-                    return ['success' => true, 'data' => $json];
-                }
-
-                return ['success' => false, 'http_code' => $httpCode, 'response' => $json];
-            };
-
-            // Attempt direct delivery to user email
-            $res = $executeRequest($to, $subject, $htmlContent, $textContent);
-            if ($res['success']) {
-                return $res;
+            $cleanRecipients = array_values(array_unique(array_filter($to)));
+            if (empty($cleanRecipients)) {
+                return ['success' => false, 'message' => 'No recipient email specified'];
             }
 
-            // If Resend returns 403 (unverified domain in sandbox mode), route to verified account email
-            $resMsg = $res['response']['message'] ?? '';
-            $ownerEmail = getenv('ADMIN_EMAIL') ?: '21u3196@student.mau.edu.ng';
-            
-            if (($res['http_code'] === 403 || strpos($resMsg, 'testing emails') !== false) && !in_array($ownerEmail, $to)) {
-                $targetStr = implode(', ', $to);
-                $fallbackSubj = "[User: {$targetStr}] " . $subject;
-                $fallbackHtml = "<div style='background:#fef3c7;border:1px solid #f59e0b;padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:12px;color:#92400e;'><strong>Sandbox Notice:</strong> Intended recipient was <code>{$targetStr}</code>. Delivered to verified tester address.</div>" . $htmlContent;
-                return $executeRequest([$ownerEmail], $fallbackSubj, $fallbackHtml, $textContent);
+            $payload = [
+                'from'    => self::getSenderEmail(),
+                'to'      => $cleanRecipients,
+                'subject' => $subject,
+                'html'    => $htmlContent,
+                'text'    => $textContent ?: strip_tags($htmlContent)
+            ];
+
+            $ch = curl_init('https://api.resend.com/emails');
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $apiKey,
+                'Content-Type: application/json'
+            ]);
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+            curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
+
+            $response = @curl_exec($ch);
+            $httpCode = @curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err = @curl_error($ch);
+            @curl_close($ch);
+
+            if ($err) {
+                return ['success' => false, 'error' => $err];
             }
 
-            return $res;
+            $json = json_decode((string)$response, true);
+            if ($httpCode >= 200 && $httpCode < 300) {
+                return ['success' => true, 'data' => $json];
+            }
+
+            return ['success' => false, 'http_code' => $httpCode, 'response' => $json];
         } catch (Throwable $e) {
             return ['success' => false, 'error' => $e->getMessage()];
         }
@@ -188,9 +173,8 @@ class NotificationService {
     /**
      * Dispatch an Automated Acknowledgement for any Transaction:
      * - In-app notification
-     * - Simulated SMS receipt to recipient phone
      * - Branded HTML email confirmation to user email
-     * - Push notification to external socket/QStack
+     * - Push notification
      */
     public static function send_transaction_acknowledgement(array $params): array {
         global $conn;
@@ -211,8 +195,6 @@ class NotificationService {
         $result = [
             'in_app'      => false,
             'email_sent'  => false,
-            'sms_sent'    => false,
-            'sms_message' => '',
             'push_sent'   => false
         ];
 
@@ -238,24 +220,7 @@ class NotificationService {
             }
         } catch (Throwable $e) {}
 
-        // 2. Simulated SMS Acknowledgement (for recipient phone number)
-        if (!empty($recipient)) {
-            $smsText = "MT-DATA Alert: Recharge of ₦" . number_format($amount, 2) . " ({$description}) on {$recipient} was SUCCESSFUL. Ref: {$refCode}. Date: " . date('d-M-y H:i', strtotime($dateStr)) . ". Thank you for choosing MT Data.";
-            
-            try {
-                $smsStmt = @mysqli_prepare($conn, "INSERT INTO sms_logs (transaction_id, user_id, phone_number, sender_id, message, status) VALUES (?, ?, ?, 'MT-DATA', ?, 'Delivered (Simulated)')");
-                if ($smsStmt) {
-                    @mysqli_stmt_bind_param($smsStmt, "iiss", $txId, $userId, $recipient, $smsText);
-                    @mysqli_stmt_execute($smsStmt);
-                    @mysqli_stmt_close($smsStmt);
-                }
-            } catch (Throwable $ignored) {}
-
-            $result['sms_sent'] = true;
-            $result['sms_message'] = $smsText;
-        }
-
-        // 3. Branded HTML Email Receipt (Resend)
+        // 2. Branded HTML Email Receipt (Resend)
         if (!empty($userEmail)) {
             $emailSubject = "Payment Receipt: {$title} [{$refCode}]";
             $htmlBody = self::buildEmailTemplate([
@@ -267,8 +232,7 @@ class NotificationService {
                 'recipient'    => $recipient,
                 'amount'       => $amount,
                 'newBalance'   => $newBalance,
-                'dateStr'      => $dateStr,
-                'smsMessage'   => $result['sms_message'] ?? ''
+                'dateStr'      => $dateStr
             ]);
 
             $emailRes = self::send_resend_email([$userEmail], $emailSubject, $htmlBody, $inAppMsg);
@@ -276,7 +240,7 @@ class NotificationService {
             $result['email_details'] = $emailRes;
         }
 
-        // 4. External Push Notification (QStack)
+        // 3. External Push Notification (QStack)
         $pushRes = self::send_external_push(
             $title,
             $inAppMsg,
@@ -313,8 +277,6 @@ class NotificationService {
         $result = [
             'in_app'      => false,
             'email_sent'  => false,
-            'sms_sent'    => false,
-            'sms_message' => '',
             'push_sent'   => false
         ];
 
@@ -342,26 +304,7 @@ class NotificationService {
             }
         } catch (Throwable $e) {}
 
-        // 2. Simulated SMS Acknowledgement to customer phone
-        $userObj = get_user($userId);
-        $userPhone = $userObj['phone'] ?? '';
-        if (!empty($userPhone)) {
-            $smsText = "MT-DATA Alert: Credit of ₦" . number_format($amount, 2) . " via {$paymentMethod} was SUCCESSFUL. Ref: {$reference}. New Bal: ₦" . number_format($newBalance, 2) . ". Thank you!";
-            
-            try {
-                $smsStmt = @mysqli_prepare($conn, "INSERT INTO sms_logs (transaction_id, user_id, phone_number, sender_id, message, status) VALUES (NULL, ?, ?, 'MT-DATA', ?, 'Delivered (Simulated)')");
-                if ($smsStmt) {
-                    @mysqli_stmt_bind_param($smsStmt, "iss", $userId, $userPhone, $smsText);
-                    @mysqli_stmt_execute($smsStmt);
-                    @mysqli_stmt_close($smsStmt);
-                }
-            } catch (Throwable $ignored) {}
-            
-            $result['sms_sent'] = true;
-            $result['sms_message'] = $smsText;
-        }
-
-        // 3. Branded HTML Email Receipt (Resend)
+        // 2. Branded HTML Email Receipt (Resend)
         if (!empty($userEmail)) {
             $emailSubject = "Wallet Credit Receipt: ₦" . number_format($amount, 2) . " [{$reference}]";
             $htmlBody = self::buildEmailTemplate([
@@ -370,11 +313,10 @@ class NotificationService {
                 'refCode'      => $reference,
                 'serviceType'  => 'Wallet Funding',
                 'description'  => "Wallet top-up via {$paymentMethod}",
-                'recipient'    => $userPhone ?: 'My Account',
+                'recipient'    => 'My Account',
                 'amount'       => $amount,
                 'newBalance'   => $newBalance,
-                'dateStr'      => $dateStr,
-                'smsMessage'   => $result['sms_message'] ?? ''
+                'dateStr'      => $dateStr
             ]);
 
             $emailRes = self::send_resend_email([$userEmail], $emailSubject, $htmlBody, $inAppMsg);
@@ -382,7 +324,7 @@ class NotificationService {
             $result['email_details'] = $emailRes;
         }
 
-        // 4. External Push Notification (QStack)
+        // 3. External Push Notification (QStack)
         $pushRes = self::send_external_push(
             $title,
             $inAppMsg,
@@ -402,7 +344,6 @@ class NotificationService {
      * Dispatch an Automated Acknowledgement for New User Registration:
      * - In-app notification
      * - Welcome HTML email via Resend
-     * - Simulated Welcome SMS
      */
     public static function send_welcome_acknowledgement(int $userId, string $userEmail, string $fullname, string $phone = ''): array {
         global $conn;
@@ -410,7 +351,6 @@ class NotificationService {
         $result = [
             'in_app'     => false,
             'email_sent' => false,
-            'sms_sent'   => false,
             'push_sent'  => false
         ];
 
@@ -427,7 +367,7 @@ class NotificationService {
 
         // 1. In-App Notification
         try {
-            $notifStmt = @mysqli_prepare($conn, "INSERT INTO notifications (user_id, title, message, service_type, channels, metadata) VALUES (?, ?, ?, 'Account', 'in_app,email,sms', ?)");
+            $notifStmt = @mysqli_prepare($conn, "INSERT INTO notifications (user_id, title, message, service_type, channels, metadata) VALUES (?, ?, ?, 'Account', 'in_app,email', ?)");
             if ($notifStmt) {
                 @mysqli_stmt_bind_param($notifStmt, "isss", $userId, $title, $inAppMsg, $metaJson);
                 @mysqli_stmt_execute($notifStmt);
@@ -436,21 +376,7 @@ class NotificationService {
             }
         } catch (Throwable $e) {}
 
-        // 2. Simulated SMS to user phone
-        if (!empty($phone)) {
-            $smsText = "Welcome to MT Data, {$fullname}! Your account is active. Top-up airtime and data with lightning speed and 1-click Face ID. Ref: #ACC-" . str_pad($userId, 5, '0', STR_PAD_LEFT);
-            try {
-                $smsStmt = @mysqli_prepare($conn, "INSERT INTO sms_logs (transaction_id, user_id, phone_number, sender_id, message, status) VALUES (NULL, ?, ?, 'MT-DATA', ?, 'Delivered (Simulated)')");
-                if ($smsStmt) {
-                    @mysqli_stmt_bind_param($smsStmt, "iss", $userId, $phone, $smsText);
-                    @mysqli_stmt_execute($smsStmt);
-                    @mysqli_stmt_close($smsStmt);
-                }
-            } catch (Throwable $ignored) {}
-            $result['sms_sent'] = true;
-        }
-
-        // 3. Branded HTML Welcome Email via Resend
+        // 2. Branded HTML Welcome Email via Resend
         if (!empty($userEmail)) {
             $emailSubject = "Welcome to MT Data – Fast Data & Airtime Top-Up";
             $htmlBody = self::buildWelcomeEmailTemplate($fullname, $userEmail, $userId);
@@ -459,7 +385,7 @@ class NotificationService {
             $result['email_details'] = $emailRes;
         }
 
-        // 4. External Push Notification
+        // 3. External Push Notification
         $pushRes = self::send_external_push(
             $title,
             $inAppMsg,
@@ -687,7 +613,7 @@ class NotificationService {
                                     <h3 style="margin: 0 0 12px 0; color: #0f172a; font-size: 15px; font-weight: 700;">What you can do with MT Data:</h3>
                                     <ul style="margin: 0 0 24px 0; padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.8;">
                                         <li><strong>Cheap Data Bundles:</strong> MTN, Airtel, Glo, and 9mobile SME & Corporate Gifting.</li>
-                                        <li><strong>Instant Airtime:</strong> VTU top-ups with instant bonus receipts.</li>
+                                        <li><strong>Instant Airtime:</strong> VTU top-ups with instant receipts.</li>
                                         <li><strong>Cable Subscriptions:</strong> Instant renewal for DSTV, GOTV, and Startimes.</li>
                                         <li><strong>Face ID Biometrics:</strong> Login seamlessly with your webcam without typing passwords.</li>
                                     </ul>
@@ -734,17 +660,6 @@ class NotificationService {
             </tr>';
         }
 
-        $smsBox = "";
-        if (!empty($d['smsMessage'])) {
-            $smsBox = '
-            <div style="margin-top: 24px; padding: 16px; background-color: #f8fafc; border-left: 4px solid #4f46e5; border-radius: 8px;">
-                <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 700; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.5px;">
-                    📱 Automated SMS Acknowledgement Sent
-                </p>
-                <p style="margin: 0; font-size: 13px; color: #334155; font-family: monospace;">' . htmlspecialchars($d['smsMessage']) . '</p>
-            </div>';
-        }
-
         return '<!DOCTYPE html>
         <html>
         <head>
@@ -763,7 +678,7 @@ class NotificationService {
                                 <td style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 30px; text-align: center;">
                                     <div style="display: inline-block; width: 50px; height: 50px; background: rgba(255,255,255,0.2); border-radius: 14px; line-height: 50px; font-size: 24px; color: #ffffff; margin-bottom: 12px;">⚡</div>
                                     <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">MT Data</h1>
-                                    <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.85); font-size: 13px;">Instant Top-Up & Vending Acknowledgement</p>
+                                    <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.85); font-size: 13px;">Instant Top-Up & Vending Receipt</p>
                                 </td>
                             </tr>
 
@@ -801,8 +716,6 @@ class NotificationService {
                                             <td style="padding: 14px 0; color: #10b981; font-weight: 800; text-align: right; font-size: 16px;">' . $balFormatted . '</td>
                                         </tr>
                                     </table>
-
-                                    ' . $smsBox . '
 
                                     <div style="margin-top: 30px; text-align: center;">
                                         <a href="https://mt-data.onrender.com/user/dashboard.php" style="display: inline-block; padding: 13px 28px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; border-radius: 12px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
@@ -882,22 +795,5 @@ class NotificationService {
         $res = mysqli_stmt_execute($stmt);
         mysqli_stmt_close($stmt);
         return $res;
-    }
-
-    /**
-     * Get user SMS logs
-     */
-    public static function get_user_sms_logs(int $userId, int $limit = 15): array {
-        global $conn;
-        $stmt = mysqli_prepare($conn, "SELECT * FROM sms_logs WHERE user_id = ? ORDER BY id DESC LIMIT ?");
-        mysqli_stmt_bind_param($stmt, "ii", $userId, $limit);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        $list = [];
-        while ($row = mysqli_fetch_assoc($res)) {
-            $list[] = $row;
-        }
-        mysqli_stmt_close($stmt);
-        return $list;
     }
 }

@@ -78,7 +78,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['process_funding'])) {
                 'old_balance'    => $old_bal,
                 'new_balance'    => $new_bal,
                 'date'           => date('Y-m-d H:i:s'),
-                'sms_message'    => $ack_info['sms_message'] ?? '',
                 'email_sent'     => $ack_info['email_sent'] ?? false
             ];
 
