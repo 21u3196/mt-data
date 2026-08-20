@@ -107,19 +107,18 @@ if (!empty($db_host)) {
     }
 }
 
-// Attempt 2: Local Docker fallback (localhost:3306)
-if (!$conn && $db_host !== 'localhost' && $db_host !== '127.0.0.1') {
-    $conn = attempt_db_connect("localhost", "root", "rootpassword", $db_name, 3306, false);
-}
-
-// Attempt 3: Local XAMPP/Dev fallback (localhost with empty password)
+// Attempt 2: Local fallback attempt (trying configured DB name & local datavending DB)
 if (!$conn) {
-    $conn = attempt_db_connect("localhost", "root", "", $db_name, 3306, false);
-}
+    $fallback_dbs = array_unique(array_filter([$db_name, "datavending"]));
+    foreach ($fallback_dbs as $fb_db) {
+        // Fallback A: Local Docker / MariaDB with configured rootpassword
+        $conn = attempt_db_connect("localhost", "root", "rootpassword", $fb_db, 3306, false);
+        if ($conn) break;
 
-// Attempt 4: 127.0.0.1 fallback
-if (!$conn) {
-    $conn = attempt_db_connect("127.0.0.1", "root", "rootpassword", $db_name, 3306, false);
+        // Fallback B: 127.0.0.1 with rootpassword
+        $conn = attempt_db_connect("127.0.0.1", "root", "rootpassword", $fb_db, 3306, false);
+        if ($conn) break;
+    }
 }
 
 // Handle Connection Failure Gracefully with informative UI

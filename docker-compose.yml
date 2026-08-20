@@ -1,5 +1,8 @@
+name: datavending_project
+
 services:
   app:
+    image: datavending_project-app:latest
     build: .
     container_name: datavending_app
     ports:

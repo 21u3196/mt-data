@@ -192,38 +192,41 @@ class BiometricEngine {
     const stdDevLuma = Math.sqrt(varianceLuma);
     const skinRatio = skinCount / totalPixels;
 
-    // Environmental Checks
-    if (meanLuma < 25) {
+    // Environmental & Facial Quality Checks
+    if (meanLuma < 48) {
       this.resetLiveness();
       return {
         isFacePresent: false,
+        isPositionedWell: false,
         isLivePerson: false,
         confidence: 0,
         livenessScore: 0,
         status: "POOR_LIGHTING",
-        statusMessage: "Environment too dark. Increase lighting.",
+        statusMessage: "Lighting too dark. Move to a bright, well-lit place.",
       };
     }
-    if (stdDevLuma < 12) {
+    if (stdDevLuma < 16) {
       this.resetLiveness();
       return {
         isFacePresent: false,
+        isPositionedWell: false,
         isLivePerson: false,
         confidence: 0,
         livenessScore: 0,
         status: "NO_FACE",
-        statusMessage: "Camera obstructed or low contrast.",
+        statusMessage: "Camera blurry or low contrast. Improve lighting.",
       };
     }
-    if (skinRatio < 0.15) {
+    if (skinRatio < 0.18) {
       this.resetLiveness();
       return {
         isFacePresent: false,
+        isPositionedWell: false,
         isLivePerson: false,
         confidence: Math.round(skinRatio * 200),
         livenessScore: 0,
         status: "NO_FACE",
-        statusMessage: "Position face in circle.",
+        statusMessage: "Move closer to position face in the oval frame.",
       };
     }
 
@@ -271,13 +274,13 @@ class BiometricEngine {
       };
     }
 
-    // Check 1: Face Centering (Comfortable tolerance within reticle center)
-    if (distFromCenter > 0.46) {
-      let directionMsg = "Center your face in the oval";
-      if (normDistX > 0.46) directionMsg = "Move slightly to the left";
-      else if (normDistX < -0.46) directionMsg = "Move slightly to the right";
-      else if (normDistY > 0.46) directionMsg = "Move head up slightly";
-      else if (normDistY < -0.46) directionMsg = "Move head down slightly";
+    // Check 1: Face Centering (Must be centered inside reticle)
+    if (distFromCenter > 0.38) {
+      let directionMsg = "Center your face inside the oval frame";
+      if (normDistX > 0.38) directionMsg = "Move slightly to the left";
+      else if (normDistX < -0.38) directionMsg = "Move slightly to the right";
+      else if (normDistY > 0.38) directionMsg = "Move head up slightly";
+      else if (normDistY < -0.38) directionMsg = "Move head down slightly";
 
       return {
         isFacePresent: true,
@@ -565,6 +568,7 @@ class BiometricEngine {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             face_descriptor: faceData.descriptor,
+            face_photo: faceData.thumbnail,
             email: emailFilter,
           }),
         });

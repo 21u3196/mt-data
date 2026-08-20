@@ -376,11 +376,15 @@ function startLivenessScanLoop() {
 function manualCaptureLiveness() {
     const liveness = getBiometricLiveness();
     if (!liveness.isFacePresent) {
-        alert("No face detected in camera frame! Please position your face clearly in the circle before capturing.");
+        alert("No face detected! Please position your face clearly inside the oval frame in a bright, well-lit environment.");
+        return;
+    }
+    if (liveness.status === 'POOR_LIGHTING') {
+        alert("Environment is too dark. Please ensure your face is well-lit before capturing.");
         return;
     }
     if (liveness.isPositionedWell === false) {
-        alert(liveness.statusMessage || "Please center your face inside the oval reticle before capturing.");
+        alert(liveness.statusMessage || "Please center your face inside the oval frame before capturing.");
         return;
     }
     isFinalizing = true;

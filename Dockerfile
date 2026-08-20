@@ -12,6 +12,8 @@ RUN apk update && apk add --no-cache \
     php83-json \
     php83-curl \
     php83-openssl \
+    php83-iconv \
+    php83-mbstring \
     ca-certificates
 
 # Ensure mysql user and group exist
