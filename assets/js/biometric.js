@@ -1,638 +1,405 @@
 /**
- * MT Data AI Biometric Face Engine
- * Real-time webcam capture, passive liveness detection (anti-spoofing), and 128-D descriptor extraction.
+ * MT Data AI Biometric Face Engine v3
+ *
+ * Key design principles:
+ *  - Candidate photo captured BEFORE the blink (eyes-open frame)
+ *  - Camera is STOPPED and hidden THE INSTANT a blink is detected
+ *    (user gets clear "done" signal before API call starts)
+ *  - liveness_verified: true sent to backend
+ *  - Auto-retry on failed match without camera restart
  */
 
 class BiometricEngine {
   constructor() {
-    this.stream = null;
-    this.videoEl = null;
-    this.statusEl = null;
-    this.reticleEl = null;
-    this.isScanning = false;
-    this.scanInterval = null;
+    this.stream        = null;
+    this.videoEl       = null;
+    this.statusEl      = null;
+    this.reticleEl     = null;
+    this.isScanning    = false;
+    this.scanInterval  = null;
 
-    // Passive Liveness Tracking State
-    this.frameHistory = [];
-    this.maxHistoryLength = 12;
+    // Blink state machine
+    // IDLE → SEEKING_FACE → WAITING_FOR_BLINK → EYES_CLOSED → BLINK_DETECTED
+    this.blinkState          = 'IDLE';
+    this.eyeLumaHistory      = [];
+    this.baselineEyeContrast = 0;
+    this.blinkFramesCount    = 0;
+    this._sampleCanvas       = null;
+    this._sampleCtx          = null;
   }
 
-  /**
-   * Start webcam stream and attach to video element
-   */
+  // ── Camera ────────────────────────────────────────────────────────────────
+
   async startCamera(videoElement, statusElement = null, reticleElement = null) {
-    this.videoEl = videoElement;
+    this.videoEl  = videoElement;
     this.statusEl = statusElement;
     this.reticleEl = reticleElement;
-    this.resetLiveness();
+    this._resetBlink();
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Webcam access not supported in this browser.");
+        throw new Error('Webcam not supported in this browser.');
       }
-
-      this.updateStatus("Requesting camera access...", "scanning");
-
+      this.updateStatus('Accessing camera…', 'scanning');
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: "user",
-        },
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
         audio: false,
       });
-
       this.videoEl.srcObject = this.stream;
       await this.videoEl.play();
-
-      this.updateStatus("Camera active. Align face inside frame.", "scanning");
+      this.updateStatus('Camera ready — position your face.', 'scanning');
       return true;
     } catch (err) {
-      console.error("Camera Error:", err);
-      this.updateStatus(
-        "Camera error: " + (err.message || "Permission denied"),
-        "error",
-      );
+      console.error('Camera error:', err);
+      this.updateStatus('Camera error: ' + (err.message || 'Permission denied'), 'error');
       return false;
     }
   }
 
-  /**
-   * Stop active camera stream
-   */
+  /** Stops all tracks and clears video. Does NOT reset blink state (so caller can retry). */
   stopCamera() {
     this.isScanning = false;
-    if (this.scanInterval) {
-      clearInterval(this.scanInterval);
-      this.scanInterval = null;
-    }
-    if (this.stream) {
-      this.stream.getTracks().forEach((track) => track.stop());
-      this.stream = null;
-    }
-    if (this.videoEl) {
-      this.videoEl.srcObject = null;
-    }
-    this.resetLiveness();
+    if (this.scanInterval) { clearInterval(this.scanInterval); this.scanInterval = null; }
+    if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }
+    if (this.videoEl) this.videoEl.srcObject = null;
   }
 
-  /**
-   * Reset temporal liveness buffer
-   */
-  resetLiveness() {
-    this.frameHistory = [];
+  _resetBlink() {
+    this.blinkState          = 'IDLE';
+    this.eyeLumaHistory      = [];
+    this.baselineEyeContrast = 0;
+    this.blinkFramesCount    = 0;
   }
 
-  /**
-   * Real-time Passive Liveness & Anti-Spoofing Analysis
-   * - Validates human face chrominance & symmetry
-   * - Evaluates physiological micro-motion & texture dynamics over temporal buffer
-   * - Prevents static photo/screen spoofing without requiring awkward head turns
-   */
-  analyzeLiveness() {
-    if (
-      !this.videoEl ||
-      this.videoEl.readyState < 2 ||
-      this.videoEl.videoWidth === 0
-    ) {
-      return {
-        isFacePresent: false,
-        isLivePerson: false,
-        confidence: 0,
-        livenessScore: 0,
-        status: "NO_FACE",
-        statusMessage: "Camera initialising...",
-      };
-    }
+  // ── Blink Frame Analysis ──────────────────────────────────────────────────
 
-    const vW = this.videoEl.videoWidth;
-    const vH = this.videoEl.videoHeight;
-    const sampleW = 128;
-    const sampleH = 128;
+  /**
+   * Analyse one video frame for blink detection.
+   * Uses luminance variance in the eye-band as a proxy for eyelid position.
+   * Eyes open  → high contrast (dark iris/pupil against white sclera)
+   * Eyes closed → uniform skin tone → contrast drops sharply
+   */
+  _processFrame() {
+    if (!this.videoEl || this.videoEl.readyState < 2) return null;
+
+    const vW = this.videoEl.videoWidth  || 640;
+    const vH = this.videoEl.videoHeight || 480;
+    const SW = 120, SH = 120;
 
     if (!this._sampleCanvas) {
-      this._sampleCanvas = document.createElement("canvas");
-      this._sampleCanvas.width = sampleW;
-      this._sampleCanvas.height = sampleH;
-      this._sampleCtx = this._sampleCanvas.getContext("2d", {
-        willReadFrequently: true,
-      });
+      this._sampleCanvas        = document.createElement('canvas');
+      this._sampleCanvas.width  = SW;
+      this._sampleCanvas.height = SH;
+      this._sampleCtx = this._sampleCanvas.getContext('2d', { willReadFrequently: true });
     }
 
-    const cropSize = Math.min(vW, vH) * 0.72;
-    const cropX = (vW - cropSize) / 2;
-    const cropY = (vH - cropSize) / 2;
+    const crop = Math.min(vW, vH) * 0.72;
+    const cx   = (vW - crop) / 2;
+    const cy   = (vH - crop) / 2;
 
-    this._sampleCtx.drawImage(
-      this.videoEl,
-      cropX,
-      cropY,
-      cropSize,
-      cropSize,
-      0,
-      0,
-      sampleW,
-      sampleH,
-    );
+    this._sampleCtx.drawImage(this.videoEl, cx, cy, crop, crop, 0, 0, SW, SH);
+    const { data: px } = this._sampleCtx.getImageData(0, 0, SW, SH);
 
-    const imgData = this._sampleCtx.getImageData(0, 0, sampleW, sampleH);
-    const pixels = imgData.data;
-    const totalPixels = sampleW * sampleH;
+    // Eye band: 22%–48% height, 15%–85% width of the cropped square
+    const eyeY0 = Math.floor(SH * 0.22), eyeY1 = Math.floor(SH * 0.48);
+    const eyeX0 = Math.floor(SW * 0.15), eyeX1 = Math.floor(SW * 0.85);
 
-    let skinCount = 0;
-    let totalLuminance = 0;
-    let sumSqLuminance = 0;
-    let skinCenterX = 0;
-    let skinCenterY = 0;
+    let skin = 0, eSum = 0, eSum2 = 0, eCnt = 0;
 
-    const luma = new Float32Array(totalPixels);
-
-    for (let y = 0; y < sampleH; y++) {
-      for (let x = 0; x < sampleW; x++) {
-        const idx = (y * sampleW + x) * 4;
-        const r = pixels[idx];
-        const g = pixels[idx + 1];
-        const b = pixels[idx + 2];
-
-        // Luminance
-        const Y = 0.299 * r + 0.587 * g + 0.114 * b;
-        const pIdx = y * sampleW + x;
-        luma[pIdx] = Y;
-        totalLuminance += Y;
-        sumSqLuminance += Y * Y;
-
-        // Multi-skin tone chrominance model
-        const Cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
-        const Cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-
-        const isSkin =
-          r > 40 &&
-          g > 25 &&
-          b > 15 &&
-          r > b &&
-          Math.abs(r - g) > 7 &&
-          Cb >= 75 &&
-          Cb <= 135 &&
-          Cr >= 125 &&
-          Cr <= 180;
-
-        if (isSkin) {
-          skinCount++;
-          skinCenterX += x;
-          skinCenterY += y;
+    for (let y = 0; y < SH; y++) {
+      for (let x = 0; x < SW; x++) {
+        const i = (y * SW + x) * 4;
+        const r = px[i], g = px[i+1], b = px[i+2];
+        // YCbCr skin detection
+        const Cb = 128 - 0.168736*r - 0.331264*g + 0.5*b;
+        const Cr = 128 + 0.5*r - 0.418688*g - 0.081312*b;
+        if (r>40 && g>25 && r>b && Cb>=75 && Cb<=135 && Cr>=125 && Cr<=180) skin++;
+        if (y>=eyeY0 && y<=eyeY1 && x>=eyeX0 && x<=eyeX1) {
+          const Y = 0.299*r + 0.587*g + 0.114*b;
+          eSum += Y; eSum2 += Y*Y; eCnt++;
         }
       }
     }
 
-    const meanLuma = totalLuminance / totalPixels;
-    const varianceLuma = Math.max(
-      0,
-      sumSqLuminance / totalPixels - meanLuma * meanLuma,
-    );
-    const stdDevLuma = Math.sqrt(varianceLuma);
-    const skinRatio = skinCount / totalPixels;
-
-    // Environmental & Facial Quality Checks
-    if (meanLuma < 48) {
-      this.resetLiveness();
-      return {
-        isFacePresent: false,
-        isPositionedWell: false,
-        isLivePerson: false,
-        confidence: 0,
-        livenessScore: 0,
-        status: "POOR_LIGHTING",
-        statusMessage: "Lighting too dark. Move to a bright, well-lit place.",
-      };
-    }
-    if (stdDevLuma < 16) {
-      this.resetLiveness();
-      return {
-        isFacePresent: false,
-        isPositionedWell: false,
-        isLivePerson: false,
-        confidence: 0,
-        livenessScore: 0,
-        status: "NO_FACE",
-        statusMessage: "Camera blurry or low contrast. Improve lighting.",
-      };
-    }
-    if (skinRatio < 0.18) {
-      this.resetLiveness();
-      return {
-        isFacePresent: false,
-        isPositionedWell: false,
-        isLivePerson: false,
-        confidence: Math.round(skinRatio * 200),
-        livenessScore: 0,
-        status: "NO_FACE",
-        statusMessage: "Move closer to position face in the oval frame.",
-      };
+    if (skin / (SW*SH) < 0.18) {
+      this.blinkState = 'SEEKING_FACE';
+      return { state: 'SEEKING_FACE' };
     }
 
-    // Centroid of skin region in sample coords (128x128, center is (64,64))
-    const cx = skinCenterX / Math.max(1, skinCount);
-    const cy = skinCenterY / Math.max(1, skinCount);
+    const mean     = eSum / Math.max(1, eCnt);
+    const variance = Math.max(0, eSum2 / Math.max(1, eCnt) - mean*mean);
+    const contrast = Math.sqrt(variance);
 
-    // Compute normalized distance from optical center
-    const normDistX = (cx - sampleW / 2) / (sampleW / 2);
-    const normDistY = (cy - sampleH / 2) / (sampleH / 2);
-    const distFromCenter = Math.hypot(normDistX, normDistY);
+    this.eyeLumaHistory.push(contrast);
+    if (this.eyeLumaHistory.length > 10) this.eyeLumaHistory.shift();
 
-    // Compute gradient energy for facial details
-    let gradEnergy = 0;
-    for (let y = 2; y < sampleH - 2; y += 2) {
-      for (let x = 2; x < sampleW - 2; x += 2) {
-        const pIdx = y * sampleW + x;
-        const dx = luma[pIdx + 1] - luma[pIdx - 1];
-        const dy = luma[pIdx + sampleW] - luma[pIdx - sampleW];
-        gradEnergy += Math.abs(dx) + Math.abs(dy);
+    // State transitions
+    if (this.blinkState === 'IDLE' || this.blinkState === 'SEEKING_FACE') {
+      if (this.eyeLumaHistory.length >= 5) {
+        this.baselineEyeContrast = this.eyeLumaHistory.reduce((a,b)=>a+b,0) / this.eyeLumaHistory.length;
+        this.blinkState = 'WAITING_FOR_BLINK';
       }
+      return { state: 'WAITING_FOR_BLINK' };
     }
 
-    // Confidence of face presence
-    const confidence = Math.min(
-      99,
-      Math.round(
-        Math.min(1.0, skinRatio / 0.25) * 45 +
-          Math.min(1.0, stdDevLuma / 25) * 30 +
-          Math.min(1.0, gradEnergy / (sampleW * sampleH * 0.08)) * 25,
-      ),
-    );
-
-    const isFacePresent = confidence >= 45 && skinRatio >= 0.12;
-
-    if (!isFacePresent) {
-      return {
-        isFacePresent: false,
-        isPositionedWell: false,
-        isLivePerson: false,
-        confidence,
-        livenessScore: 0,
-        status: "NO_FACE",
-        statusMessage: "Position your face inside the oval",
-      };
+    if (this.blinkState === 'WAITING_FOR_BLINK') {
+      if (contrast < this.baselineEyeContrast * 0.76 && this.baselineEyeContrast > 8) {
+        this.blinkState = 'EYES_CLOSED';
+        this.blinkFramesCount = 1;
+        return { state: 'EYES_CLOSED' };
+      }
+      return { state: 'WAITING_FOR_BLINK' };
     }
 
-    // Check 1: Face Centering (Must be centered inside reticle)
-    if (distFromCenter > 0.38) {
-      let directionMsg = "Center your face inside the oval frame";
-      if (normDistX > 0.38) directionMsg = "Move slightly to the left";
-      else if (normDistX < -0.38) directionMsg = "Move slightly to the right";
-      else if (normDistY > 0.38) directionMsg = "Move head up slightly";
-      else if (normDistY < -0.38) directionMsg = "Move head down slightly";
-
-      return {
-        isFacePresent: true,
-        isPositionedWell: false,
-        isLivePerson: false,
-        confidence,
-        livenessScore: 40,
-        status: "OFF_CENTER",
-        statusMessage: directionMsg,
-      };
+    if (this.blinkState === 'EYES_CLOSED') {
+      this.blinkFramesCount++;
+      if (contrast >= this.baselineEyeContrast * 0.85 || this.blinkFramesCount >= 3) {
+        this.blinkState = 'BLINK_DETECTED';
+        return { state: 'BLINK_DETECTED' };
+      }
+      return { state: 'EYES_CLOSED' };
     }
 
-    // Check 2: Face Distance / Scale Check (Reject only if far away)
-    if (skinRatio < 0.1) {
-      return {
-        isFacePresent: true,
-        isPositionedWell: false,
-        isLivePerson: false,
-        confidence,
-        livenessScore: 35,
-        status: "TOO_FAR",
-        statusMessage: "Move a bit closer to the camera",
-      };
-    }
+    return { state: this.blinkState };
+  }
 
-    // Push frame metrics into temporal history for Passive Liveness Anti-Spoofing
-    const now = performance.now();
-    this.frameHistory.push({
-      time: now,
-      meanLuma,
-      cx,
-      cy,
-      gradEnergy,
-    });
+  // ── Blink Detection Loop ──────────────────────────────────────────────────
 
-    if (this.frameHistory.length > this.maxHistoryLength) {
-      this.frameHistory.shift();
-    }
+  /**
+   * Start the blink detection scan.
+   *
+   * CRITICAL: candidatePhoto is captured while eyes are OPEN (WAITING_FOR_BLINK).
+   * This gives the server an eyes-open image for liveness validation.
+   *
+   * The moment BLINK_DETECTED fires:
+   *  1. Interval is immediately cleared (stops scanning)
+   *  2. Camera tracks are stopped (light turns off — clear "done" signal)
+   *  3. onBlinkCaptured is called with the candidate photo
+   *
+   * This means the camera shuts off BEFORE the API call starts.
+   */
+  startBlinkDetection(onBlinkCaptured, onFrameUpdate = null) {
+    if (this.isScanning) return;
+    this.isScanning     = true;
+    this.blinkState     = 'SEEKING_FACE';
+    this.eyeLumaHistory = [];
 
-    // Evaluate Temporal Micro-Motion & Texture Dynamics
-    let microMotionScore = 70;
-    let livenessScore = 70;
-    let isLivePerson = false;
+    let candidatePhoto      = null;
+    let candidateDescriptor = null;
+    let lastCandidateMs     = 0;
 
-    if (this.frameHistory.length >= 6) {
-      let lumaDiffSum = 0;
-      let posDiffSum = 0;
+    this.scanInterval = setInterval(() => {
+      if (!this.isScanning) return;
 
-      for (let i = 1; i < this.frameHistory.length; i++) {
-        const prev = this.frameHistory[i - 1];
-        const curr = this.frameHistory[i];
-        lumaDiffSum += Math.abs(curr.meanLuma - prev.meanLuma);
-        posDiffSum += Math.hypot(curr.cx - prev.cx, curr.cy - prev.cy);
+      const res = this._processFrame();
+
+      // Capture candidate every 300ms while eyes are open & face aligned
+      if (res && res.state === 'WAITING_FOR_BLINK') {
+        const now = Date.now();
+        if (now - lastCandidateMs > 300) {
+          lastCandidateMs = now;
+          const photo = this.capturePhoto();
+          const fd    = this.extractDescriptor();
+          if (photo) {
+            candidatePhoto      = photo;
+            candidateDescriptor = fd ? fd.descriptor : null;
+          }
+        }
       }
 
-      const avgPosJitter = posDiffSum / (this.frameHistory.length - 1);
-      const avgLumaChange = lumaDiffSum / (this.frameHistory.length - 1);
+      if (onFrameUpdate && res) onFrameUpdate(res);
 
-      // Rapid uncontrolled shaking check
-      if (avgPosJitter > 9.0) {
-        return {
-          isFacePresent: true,
-          isPositionedWell: false,
-          isLivePerson: false,
-          confidence,
-          livenessScore: 40,
-          status: "TOO_SHAKY",
-          statusMessage: "Hold steady and keep still in the oval",
-        };
+      if (res && res.state === 'BLINK_DETECTED') {
+        // ── BLINK CONFIRMED — stop everything immediately ─────────────────
+        this.isScanning = false;
+        clearInterval(this.scanInterval);
+        this.scanInterval = null;
+
+        // Stop camera tracks NOW (camera light goes off — user knows it's done)
+        if (this.stream) {
+          this.stream.getTracks().forEach(t => t.stop());
+          this.stream = null;
+        }
+        if (this.videoEl) this.videoEl.srcObject = null;
+
+        // Use eyes-open candidate frame (captured before the blink)
+        // Fallback only if candidate was never stored (edge case)
+        const photo      = candidatePhoto      || null;
+        const descriptor = candidateDescriptor || null;
+
+        if (onBlinkCaptured) {
+          onBlinkCaptured({ photo, descriptor, liveness_verified: true });
+        }
       }
+    }, 100); // 10 fps
+  }
 
-      if (avgPosJitter <= 6.5) {
-        microMotionScore = Math.min(
-          100,
-          Math.round(80 + this.frameHistory.length * 2.0),
-        );
-      } else {
-        microMotionScore = Math.min(
-          100,
-          Math.round(65 + this.frameHistory.length * 1.5),
-        );
-      }
+  // ── Login Flow ────────────────────────────────────────────────────────────
 
-      livenessScore = Math.min(
-        99,
-        Math.round(confidence * 0.5 + microMotionScore * 0.5),
-      );
-      isLivePerson = livenessScore >= 60 && this.frameHistory.length >= 6;
-    } else {
-      livenessScore = Math.round(confidence * 0.6);
-      isLivePerson = this.frameHistory.length >= 3 && confidence >= 60;
-    }
+  /**
+   * Automatic login: camera → blink → API → redirect.
+   * On blink: camera stops immediately, status shows "verifying".
+   * On failed match: camera restarts for another attempt.
+   * On network error: camera restarts for retry.
+   *
+   * @param {Function|null} onSuccessCallback  Optional custom success handler
+   * @param {string|null}   emailFilter        Optional email to narrow match
+   * @param {object}        uiRefs             { videoEl, statusEl, reticleEl } — needed for retry restarts
+   */
+  startLoginBlinkScan(onSuccessCallback, emailFilter, uiRefs) {
+    this.startBlinkDetection(
+      // ── onBlinkCaptured ─────────────────────────────────────────────────
+      async (blinkData) => {
+        // Camera is already stopped. Update UI immediately.
+        this.updateStatus('Blink verified — verifying identity…', 'scanning');
+        if (this.reticleEl) this.reticleEl.style.borderColor = '#10b981';
 
-    let status = "CHECKING_LIVENESS";
-    let statusMessage = "Verifying facial biometrics...";
+        if (!blinkData.photo) {
+          this.updateStatus('Could not capture face photo. Please try again.', 'error');
+          setTimeout(() => this._retryLogin(onSuccessCallback, emailFilter, uiRefs), 2500);
+          return;
+        }
 
-    if (isLivePerson) {
-      status = "LIVE_VERIFIED";
-      statusMessage = "Face aligned. Hold steady to capture...";
-    } else {
-      statusMessage = "Face aligned. Hold still...";
-    }
+        try {
+          const response = await fetch('../api/face_auth.php', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+              face_photo:        blinkData.photo,
+              face_descriptor:   blinkData.descriptor,
+              liveness_verified: true,
+              email:             emailFilter,
+            }),
+          });
 
-    return {
-      isFacePresent: true,
-      isPositionedWell: true,
-      isLivePerson: true,
-      confidence,
-      livenessScore,
-      status,
-      statusMessage,
-      metrics: {
-        skinRatio: Number(skinRatio.toFixed(3)),
-        distFromCenter: Number(distFromCenter.toFixed(3)),
-        brightness: Math.round(meanLuma),
-        contrast: Math.round(stdDevLuma),
-        framesAnalyzed: this.frameHistory.length,
+          const result = await response.json();
+
+          if (result.success) {
+            this.updateStatus('Identity verified! Redirecting…', 'success');
+            setTimeout(() => {
+              if (onSuccessCallback) {
+                onSuccessCallback(result);
+              } else {
+                window.location.href = result.redirect || 'dashboard.php';
+              }
+            }, 600);
+
+          } else {
+            this.updateStatus(result.message || 'Face not recognized.', 'error');
+            if (this.reticleEl) this.reticleEl.style.borderColor = '#ef4444';
+            setTimeout(() => this._retryLogin(onSuccessCallback, emailFilter, uiRefs), 3000);
+          }
+        } catch (err) {
+          console.error('Auth fetch error:', err);
+          this.updateStatus('Network error — retrying…', 'error');
+          setTimeout(() => this._retryLogin(onSuccessCallback, emailFilter, uiRefs), 3000);
+        }
       },
-    };
-  }
 
-  /**
-   * Compatibility alias for face presence & pose detection
-   */
-  detectFaceAndPose() {
-    const res = this.analyzeLiveness();
-    return {
-      ...res,
-      pose: { label: "CENTER", yaw: 0, pitch: 0 },
-      reason: res.statusMessage,
-    };
-  }
-
-  /**
-   * Extract 128-dimensional biometric descriptor from current video frame
-   */
-  extractFaceDescriptor(targetWidth = 128, targetHeight = 128) {
-    if (!this.videoEl || this.videoEl.readyState < 2) {
-      return null;
-    }
-
-    const vW = this.videoEl.videoWidth || 640;
-    const vH = this.videoEl.videoHeight || 480;
-
-    // Create offscreen canvas
-    const canvas = document.createElement("canvas");
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
-    // Center square crop of face area
-    const cropSize = Math.min(vW, vH) * 0.72;
-    const cropX = (vW - cropSize) / 2;
-    const cropY = (vH - cropSize) / 2;
-
-    ctx.drawImage(
-      this.videoEl,
-      cropX,
-      cropY,
-      cropSize,
-      cropSize,
-      0,
-      0,
-      targetWidth,
-      targetHeight,
+      // ── onFrameUpdate ────────────────────────────────────────────────────
+      (res) => {
+        if (!res) return;
+        if (res.state === 'SEEKING_FACE') {
+          this.updateStatus('Position your face in the frame', 'scanning');
+          if (this.reticleEl) this.reticleEl.style.borderColor = 'rgba(255,255,255,0.3)';
+        } else if (res.state === 'WAITING_FOR_BLINK') {
+          this.updateStatus('Face detected — BLINK to sign in', 'scanning');
+          if (this.reticleEl) this.reticleEl.style.borderColor = '#f59e0b';
+        } else if (res.state === 'EYES_CLOSED' || res.state === 'BLINK_DETECTED') {
+          this.updateStatus('Blink detected — capturing…', 'success');
+          if (this.reticleEl) this.reticleEl.style.borderColor = '#10b981';
+        }
+      }
     );
+  }
 
-    // Get pixel data for feature extraction
-    const imgData = ctx.getImageData(0, 0, targetWidth, targetHeight);
-    const data = imgData.data;
+  async _retryLogin(onSuccessCallback, emailFilter, uiRefs) {
+    if (!uiRefs) return;
+    this._resetBlink();
+    this.updateStatus('Restarting camera for another attempt…', 'scanning');
+    if (this.reticleEl) this.reticleEl.style.borderColor = 'rgba(255,255,255,0.3)';
 
-    // Convert to grayscale matrix
-    const gray = new Float32Array(targetWidth * targetHeight);
+    // Restart camera
+    const ok = await this.startCamera(uiRefs.videoEl, uiRefs.statusEl, uiRefs.reticleEl);
+    if (ok) {
+      this.startLoginBlinkScan(onSuccessCallback, emailFilter, uiRefs);
+    }
+  }
+
+  // ── Photo / Descriptor ────────────────────────────────────────────────────
+
+  capturePhoto() {
+    if (!this.videoEl || this.videoEl.readyState < 2) return null;
+    const canvas  = document.createElement('canvas');
+    canvas.width  = this.videoEl.videoWidth  || 640;
+    canvas.height = this.videoEl.videoHeight || 480;
+    canvas.getContext('2d').drawImage(this.videoEl, 0, 0);
+    return canvas.toDataURL('image/jpeg', 0.93);
+  }
+
+  /** 128-D HOG descriptor — local fallback when AWS is unavailable */
+  extractDescriptor(W = 128, H = 128) {
+    if (!this.videoEl || this.videoEl.readyState < 2) return null;
+
+    const vW = this.videoEl.videoWidth || 640, vH = this.videoEl.videoHeight || 480;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const crop = Math.min(vW, vH) * 0.72;
+    ctx.drawImage(this.videoEl, (vW-crop)/2, (vH-crop)/2, crop, crop, 0, 0, W, H);
+
+    const { data } = ctx.getImageData(0, 0, W, H);
+    const gray = new Float32Array(W * H);
     for (let i = 0; i < data.length; i += 4) {
-      gray[i / 4] =
-        (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) / 255.0;
+      gray[i/4] = (0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2]) / 255;
     }
 
-    // Generate 128-D spatial gradient histogram descriptor (16 cells x 8 gradient bins)
-    const descriptor = new Array(128).fill(0);
-    const cellW = Math.floor(targetWidth / 4);
-    const cellH = Math.floor(targetHeight / 4);
+    const desc = new Array(128).fill(0);
+    const cW   = Math.floor(W/4), cH = Math.floor(H/4);
 
     for (let cy = 0; cy < 4; cy++) {
       for (let cx = 0; cx < 4; cx++) {
-        const cellIndex = (cy * 4 + cx) * 8;
-
-        for (let y = cy * cellH + 1; y < (cy + 1) * cellH - 1; y++) {
-          for (let x = cx * cellW + 1; x < (cx + 1) * cellW - 1; x++) {
-            const idx = y * targetWidth + x;
-            const dx = gray[idx + 1] - gray[idx - 1];
-            const dy = gray[idx + targetWidth] - gray[idx - targetWidth];
-
-            const magnitude = Math.sqrt(dx * dx + dy * dy);
-            let angle = Math.atan2(dy, dx);
-            if (angle < 0) angle += Math.PI * 2;
-
-            const bin = Math.min(7, Math.floor((angle / (Math.PI * 2)) * 8));
-            descriptor[cellIndex + bin] += magnitude;
+        const base = (cy*4+cx)*8;
+        for (let y = cy*cH+1; y < (cy+1)*cH-1; y++) {
+          for (let x = cx*cW+1; x < (cx+1)*cW-1; x++) {
+            const idx = y*W + x;
+            const dx  = gray[idx+1] - gray[idx-1];
+            const dy  = gray[idx+W]  - gray[idx-W];
+            const mag = Math.sqrt(dx*dx + dy*dy);
+            let   ang = Math.atan2(dy, dx);
+            if (ang < 0) ang += Math.PI*2;
+            desc[base + Math.min(7, Math.floor(ang/(Math.PI*2)*8))] += mag;
           }
         }
       }
     }
 
-    // L2 Normalize descriptor vector to unit sphere
-    let sumSq = 0;
-    for (let i = 0; i < 128; i++) {
-      sumSq += descriptor[i] * descriptor[i];
-    }
-    const norm = Math.sqrt(sumSq) || 1.0;
-    for (let i = 0; i < 128; i++) {
-      descriptor[i] = Number((descriptor[i] / norm).toFixed(6));
-    }
+    let sq = 0;
+    for (let i = 0; i < 128; i++) sq += desc[i]*desc[i];
+    const n = Math.sqrt(sq) || 1;
+    for (let i = 0; i < 128; i++) desc[i] = Number((desc[i]/n).toFixed(6));
 
-    // Generate a crisp thumbnail for avatar
-    const thumbCanvas = document.createElement("canvas");
-    thumbCanvas.width = 140;
-    thumbCanvas.height = 140;
-    const tCtx = thumbCanvas.getContext("2d");
-    tCtx.drawImage(
-      this.videoEl,
-      cropX,
-      cropY,
-      cropSize,
-      cropSize,
-      0,
-      0,
-      140,
-      140,
-    );
-    const thumbnail = thumbCanvas.toDataURL("image/jpeg", 0.88);
-
-    return { descriptor, thumbnail };
+    return { descriptor: desc };
   }
 
-  /**
-   * Start continuous biometric login scan with passive liveness validation
-   */
-  startLoginScan(onSuccessCallback, emailFilter = null) {
-    if (this.isScanning) return;
-    this.isScanning = true;
-    this.resetLiveness();
+  // ── Status UI ─────────────────────────────────────────────────────────────
 
-    let attemptCount = 0;
-    const maxAttempts = 35;
-
-    this.scanInterval = setInterval(async () => {
-      if (!this.isScanning) return;
-
-      const liveness = this.analyzeLiveness();
-      if (!liveness.isFacePresent || !liveness.isPositionedWell) {
-        if (this.reticleEl) {
-          this.reticleEl.style.borderColor = "rgba(255, 255, 255, 0.4)";
-        }
-        this.updateStatus(
-          liveness.statusMessage || "Align face inside circle",
-          "scanning",
-        );
-        return;
-      }
-
-      attemptCount++;
-
-      // Visual feedback: Face detected
-      if (this.reticleEl) {
-        this.reticleEl.style.borderColor = liveness.isLivePerson
-          ? "#10b981"
-          : "rgba(255, 255, 255, 0.7)";
-      }
-      this.updateStatus(
-        liveness.statusMessage,
-        liveness.isLivePerson ? "success" : "scanning",
-      );
-
-      if (!liveness.isLivePerson) {
-        return; // Wait for passive liveness confirmation before sending auth request
-      }
-
-      const faceData = this.extractFaceDescriptor();
-      if (!faceData) return;
-
-      try {
-        const response = await fetch("../api/face_auth.php", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            face_descriptor: faceData.descriptor,
-            face_photo: faceData.thumbnail,
-            email: emailFilter,
-          }),
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-          this.isScanning = false;
-          clearInterval(this.scanInterval);
-          this.updateStatus(
-            `Welcome back, ${result.user.fullname}!`,
-            "success",
-          );
-
-          if (this.reticleEl) {
-            this.reticleEl.style.borderColor = "#10b981";
-          }
-
-          setTimeout(() => {
-            if (onSuccessCallback) {
-              onSuccessCallback(result);
-            } else {
-              window.location.href = result.redirect || "dashboard.php";
-            }
-          }, 1000);
-        } else {
-          if (attemptCount >= maxAttempts) {
-            this.isScanning = false;
-            clearInterval(this.scanInterval);
-            this.updateStatus(
-              "Face match timed out. Try again or use password.",
-              "error",
-            );
-            if (this.reticleEl)
-              this.reticleEl.style.borderColor = "rgba(255, 255, 255, 0.4)";
-          }
-        }
-      } catch (err) {
-        console.error("Auth request failed:", err);
-      }
-    }, 600);
-  }
-
-  /**
-   * Update status pill UI
-   */
-  updateStatus(message, type = "scanning") {
+  updateStatus(msg, type = 'scanning') {
     if (!this.statusEl) return;
-    this.statusEl.className = `inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold ${
-      type === "success"
-        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-        : type === "error"
-          ? "bg-red-50 text-red-700 border border-red-200"
-          : "bg-zinc-100 text-zinc-800 border border-zinc-200"
-    }`;
-    this.statusEl.innerHTML = `<span class="w-2 h-2 rounded-full ${
-      type === "success"
-        ? "bg-emerald-500"
-        : type === "error"
-          ? "bg-red-500"
-          : "bg-zinc-500 animate-pulse"
-    }"></span> <span>${message}</span>`;
+    const cls = {
+      success: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+      error:   'bg-red-50 text-red-700 border border-red-200',
+      scanning:'bg-amber-50 text-amber-800 border border-amber-200',
+    };
+    const dot = {
+      success: 'bg-emerald-500',
+      error:   'bg-red-500',
+      scanning:'bg-amber-500 animate-ping',
+    };
+    this.statusEl.className = `inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold ${cls[type]||cls.scanning}`;
+    this.statusEl.innerHTML = `<span class="w-2 h-2 rounded-full ${dot[type]||dot.scanning}"></span><span>${msg}</span>`;
   }
 }
 
-// Global instance
 window.biometricEngine = new BiometricEngine();

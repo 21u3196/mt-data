@@ -35,27 +35,32 @@ $db_name = "datavending";
 $db_port = 3306;
 $db_ssl  = false;
 
-// Check for Database URL / URI format (e.g. Aiven, Render, ClearDB)
-$dbUri = getenv('DB_URI') ?: (getenv('DATABASE_URL') ?: (getenv('MYSQL_URL') ?: getenv('CLEARDB_DATABASE_URL')));
-if (!empty($dbUri)) {
-    $parsed = parse_url($dbUri);
-    if ($parsed) {
-        if (!empty($parsed['host'])) $db_host = $parsed['host'];
-        if (!empty($parsed['user'])) $db_user = urldecode($parsed['user']);
-        if (isset($parsed['pass']))  $db_pass = urldecode($parsed['pass']);
-        if (!empty($parsed['port'])) $db_port = (int)$parsed['port'];
-        if (!empty($parsed['path'])) $db_name = trim($parsed['path'], '/');
-        if (!empty($parsed['query']) && (stripos($parsed['query'], 'ssl') !== false)) {
-            $db_ssl = true;
+// Priority 1: Explicit environment variables (set by docker-compose or hosting platform)
+// These override everything including DB_URI from .env
+$has_explicit_env = (getenv('DB_HOST') && getenv('DB_HOST') !== '');
+
+if ($has_explicit_env) {
+    $db_host = getenv('DB_HOST');
+    $db_user = getenv('DB_USER') ?: $db_user;
+    $db_pass = (getenv('DB_PASS') !== false) ? getenv('DB_PASS') : ((getenv('DB_PASSWORD') !== false) ? getenv('DB_PASSWORD') : $db_pass);
+    $db_name = getenv('DB_NAME') ?: $db_name;
+    $db_port = getenv('DB_PORT') ? (int)getenv('DB_PORT') : $db_port;
+} else {
+    // Priority 2: Database URL / URI format (e.g. Aiven, Render, ClearDB)
+    $dbUri = getenv('DB_URI') ?: (getenv('DATABASE_URL') ?: (getenv('MYSQL_URL') ?: getenv('CLEARDB_DATABASE_URL')));
+    if (!empty($dbUri)) {
+        $parsed = parse_url($dbUri);
+        if ($parsed) {
+            if (!empty($parsed['host'])) $db_host = $parsed['host'];
+            if (!empty($parsed['user'])) $db_user = urldecode($parsed['user']);
+            if (isset($parsed['pass']))  $db_pass = urldecode($parsed['pass']);
+            if (!empty($parsed['port'])) $db_port = (int)$parsed['port'];
+            if (!empty($parsed['path'])) $db_name = trim($parsed['path'], '/');
+            if (!empty($parsed['query']) && (stripos($parsed['query'], 'ssl') !== false)) {
+                $db_ssl = true;
+            }
         }
     }
-} else {
-    if (getenv('DB_HOST'))     $db_host = getenv('DB_HOST');
-    if (getenv('DB_USER'))     $db_user = getenv('DB_USER');
-    if (getenv('DB_PASS') !== false)     $db_pass = getenv('DB_PASS');
-    elseif (getenv('DB_PASSWORD') !== false) $db_pass = getenv('DB_PASSWORD');
-    if (getenv('DB_NAME'))     $db_name = getenv('DB_NAME');
-    if (getenv('DB_PORT'))     $db_port = (int)getenv('DB_PORT');
 }
 
 // Enable SSL if using cloud provider or explicit flag

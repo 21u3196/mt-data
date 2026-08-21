@@ -1,87 +1,116 @@
 <?php
+/**
+ * Face Enrollment API
+ *
+ * Pipeline:
+ *  1. Auth gate (must be logged in)
+ *  2. Decode + validate image bytes
+ *  3. AWS Rekognition face quality + SERVER-SIDE LIVENESS check
+ *  4. Duplicate face detection across all enrolled accounts
+ *  5. Save face file & persist biometric profile to DB
+ */
 header('Content-Type: application/json; charset=utf-8');
-include_once(__DIR__ . "/../config.php");
-require_once(__DIR__ . "/../aws_external_biometric.php");
+include_once(__DIR__ . '/../config.php');
+require_once(__DIR__ . '/../aws_external_biometric.php');
 
 if (!is_logged_in()) {
-    echo json_encode(['success' => false, 'message' => 'Unauthorized. Please log in first.']);
+    echo json_encode(['success' => false, 'message' => 'Session expired. Please log in first.']);
     exit();
 }
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid request method.']);
     exit();
 }
 
 $input = json_decode(file_get_contents('php://input'), true);
-
-if (!$input || empty($input['face_descriptor']) || !is_array($input['face_descriptor'])) {
-    echo json_encode(['success' => false, 'message' => 'Invalid biometric face data.']);
+if (!$input || empty($input['face_photo'])) {
+    echo json_encode(['success' => false, 'message' => 'A face photo is required. Position your face in frame and allow the blink detection to capture.']);
     exit();
 }
 
-if (empty($input['face_photo'])) {
-    echo json_encode(['success' => false, 'message' => 'A clear face photo is required for enrollment. Please position your face in the camera frame.']);
-    exit();
-}
-
+// ── 1. Decode base64 face photo ───────────────────────────────────────────────
 $photo_data = $input['face_photo'];
-$raw_bytes = null;
-
-if (preg_match('/^data:image\/(\w+);base64,/', $photo_data, $type)) {
-    $photo_base64 = substr($photo_data, strpos($photo_data, ',') + 1);
-    $raw_bytes = base64_decode($photo_base64);
+$raw_bytes  = null;
+if (preg_match('/^data:image\/\w+;base64,/', $photo_data)) {
+    $raw_bytes = base64_decode(substr($photo_data, strpos($photo_data, ',') + 1));
 } else {
     $raw_bytes = base64_decode($photo_data);
 }
 
-if (!$raw_bytes || strlen($raw_bytes) < 1000) {
-    echo json_encode(['success' => false, 'message' => 'Invalid face photo captured. Please ensure good lighting and try again.']);
+if (!$raw_bytes || strlen($raw_bytes) < 1500) {
+    echo json_encode(['success' => false, 'message' => 'Captured image is unreadable or too small. Check your camera and try again.']);
     exit();
 }
 
-// AWS Rekognition Face Quality Standard Check
+$user_id    = (int)$_SESSION['user_id'];
+$descriptor = (!empty($input['face_descriptor']) && is_array($input['face_descriptor'])) ? $input['face_descriptor'] : null;
+// Flag sent by JS indicating a blink was detected client-side
+$liveness_client = !empty($input['liveness_verified']) && $input['liveness_verified'] === true;
+
+$rekClient  = null;
+$aws_used   = false;
+
+// ── 2. AWS Rekognition: Quality + Server-Side Liveness Gate ──────────────────
+// requireEyesOpen = true: The captured frame is taken BEFORE the blink, so
+// AWS should confirm eyes are open — this server-side check catches photo spoofing.
 if (isAwsRekognitionAvailable()) {
     $rekClient = getRekognitionClient();
-    $awsQuality = detectFaceQuality($rekClient, $raw_bytes);
-    if (isset($awsQuality['valid']) && $awsQuality['valid'] === false) {
-        echo json_encode([
-            'success' => false,
-            'message' => 'AWS Rekognition Quality Check Failed: ' . ($awsQuality['error'] ?? 'Unsuitable facial image quality.')
-        ]);
-        exit();
+    if ($rekClient) {
+        $quality = detectFaceQuality($rekClient, $raw_bytes, true);
+        if (isset($quality['valid']) && $quality['valid'] === false) {
+            echo json_encode([
+                'success' => false,
+                'message' => $quality['error'] ?? 'Face quality / liveness check failed.',
+                'code'    => $quality['code']  ?? 'QUALITY_FAIL',
+            ]);
+            exit();
+        }
+        $aws_used = true;
     }
 }
 
-$user_id = (int)$_SESSION['user_id'];
+// ── 3. Duplicate Face Detection ───────────────────────────────────────────────
+$duplicate = findDuplicateFace($conn, $raw_bytes, $descriptor, $user_id, $rekClient);
+if ($duplicate) {
+    echo json_encode([
+        'success'             => false,
+        'message'             => 'Duplicate Face Detected! This facial profile is already enrolled under another account (' . htmlspecialchars($duplicate['email']) . '). Each person may only have ONE account with Face ID.',
+        'code'                => 'DUPLICATE_FACE',
+        'conflicting_account' => htmlspecialchars($duplicate['email']),
+    ]);
+    exit();
+}
 
-// Save photo locally to uploads/faces/
+// ── 4. Save face photo file ───────────────────────────────────────────────────
 $upload_dir = __DIR__ . '/../uploads/faces';
 if (!is_dir($upload_dir)) {
     @mkdir($upload_dir, 0755, true);
 }
 $file_path = $upload_dir . '/user_' . $user_id . '.jpg';
-@file_put_contents($file_path, $raw_bytes);
+file_put_contents($file_path, $raw_bytes);
 
-$descriptor_json = json_encode($input['face_descriptor']);
-$photo_saved_value = clean_input($photo_data);
+// ── 5. Persist biometric profile to DB ───────────────────────────────────────
+$descriptor_json = $descriptor ? json_encode($descriptor) : null;
+$photo_db        = clean_input($photo_data);
 
-$stmt = mysqli_prepare($conn, "UPDATE users SET face_descriptor = ?, face_photo = ?, face_enrolled_at = NOW() WHERE id = ?");
-
+$stmt = mysqli_prepare($conn, 'UPDATE users SET face_descriptor = ?, face_photo = ?, face_enrolled_at = NOW() WHERE id = ?');
 if ($stmt) {
-    mysqli_stmt_bind_param($stmt, "ssi", $descriptor_json, $photo_saved_value, $user_id);
+    mysqli_stmt_bind_param($stmt, 'ssi', $descriptor_json, $photo_db, $user_id);
     $ok = mysqli_stmt_execute($stmt);
     mysqli_stmt_close($stmt);
 
     if ($ok) {
         echo json_encode([
-            'success' => true,
-            'message' => 'Face biometrics enrolled successfully using AWS Rekognition standards!'
+            'success'      => true,
+            'message'      => $aws_used
+                ? 'Face ID enrolled successfully! AWS Rekognition verified liveness, quality & uniqueness.'
+                : 'Face ID enrolled successfully!',
+            'aws_verified' => $aws_used,
         ]);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Database error while saving biometrics.']);
+        echo json_encode(['success' => false, 'message' => 'Database error while saving biometrics. Please try again.']);
     }
 } else {
-    echo json_encode(['success' => false, 'message' => 'Failed to prepare database statement.']);
+    echo json_encode(['success' => false, 'message' => 'Server error. Please try again later.']);
 }
 ?>
