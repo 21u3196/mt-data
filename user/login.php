@@ -118,40 +118,37 @@ include_once("../includes/navbar.php");
         <div id="faceAuthPane" style="display:none;" class="space-y-3 text-center">
 
             <!-- Instruction tip -->
-            <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 font-medium flex items-center justify-center gap-2">
-                <i class="fa-solid fa-eye text-amber-600 animate-bounce flex-shrink-0"></i>
-                <span>Look at camera &amp; <strong>BLINK</strong> when your face is aligned — camera closes automatically</span>
+            <div id="faceInstructionTip" class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 font-medium flex items-center justify-center gap-2">
+                <i class="fa-solid fa-face-smile text-amber-600 animate-bounce flex-shrink-0"></i>
+                <span>Position face in frame and hold steady for automatic login</span>
             </div>
 
-            <!-- Camera viewfinder -->
+            <!-- Camera Viewfinder -->
             <div id="faceViewfinderWrap" class="relative w-52 h-52 sm:w-60 sm:h-60 mx-auto rounded-2xl overflow-hidden border-2 border-zinc-900 bg-zinc-900 shadow-inner">
-                <!-- Live video -->
                 <video id="faceVideo" class="w-full h-full object-cover scale-x-[-1]" autoplay playsinline muted></video>
-
-                <!-- Frozen snapshot shown after blink (replaces video) -->
-                <canvas id="faceSnapshot" class="absolute inset-0 w-full h-full object-cover scale-x-[-1] hidden"></canvas>
-
-                <!-- Verified overlay (shown after blink) -->
-                <div id="faceVerifiedOverlay" class="absolute inset-0 bg-emerald-900/70 hidden flex-col items-center justify-center gap-2">
-                    <i class="fa-solid fa-circle-check text-white text-4xl"></i>
-                    <p class="text-white text-xs font-bold">Captured! Verifying…</p>
-                </div>
-
-                <!-- Reticle -->
                 <div id="scanReticle" class="absolute inset-3 rounded-[32px] border-2 border-white/30 pointer-events-none transition-colors duration-300"></div>
-
-                <!-- Laser sweep -->
                 <div id="laserLine" class="absolute left-0 right-0 h-0.5 bg-emerald-400 shadow-[0_0_8px_#34d399] animate-laser pointer-events-none"></div>
+            </div>
+
+            <!-- Loader Pane (Shown after face capture instead of image box) -->
+            <div id="faceLoaderPane" style="display:none;" class="py-10 text-center space-y-4">
+                <div class="relative w-16 h-16 mx-auto">
+                    <div class="absolute inset-0 rounded-full border-4 border-zinc-200 border-t-zinc-900 animate-spin"></div>
+                    <div class="absolute inset-2 rounded-full bg-zinc-50 text-zinc-900 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                </div>
+                <p id="faceLoaderText" class="text-sm font-bold text-zinc-900">Verifying identity with AWS Rekognition...</p>
             </div>
 
             <!-- Status pill -->
             <div id="scanStatus" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                 <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                <span>Starting camera…</span>
+                <span>Starting camera...</span>
             </div>
 
             <!-- Optional email hint -->
-            <div class="relative rounded-xl border border-zinc-200 bg-zinc-50 text-left">
+            <div id="faceEmailContainer" class="relative rounded-xl border border-zinc-200 bg-zinc-50 text-left">
                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400 text-sm">
                     <i class="fa-solid fa-at"></i>
                 </span>
@@ -160,7 +157,7 @@ include_once("../includes/navbar.php");
                     placeholder="Optional: enter your email (speeds up match)">
             </div>
 
-            <p class="text-[10px] text-zinc-400">Fully automatic — no button press needed.</p>
+            <p id="faceNoteText" class="text-[10px] text-zinc-400">Fully automatic: no button press needed.</p>
         </div>
 
         <!-- Footer -->
@@ -186,7 +183,7 @@ function switchAuthTab(mode) {
         faceBtn.className  = TAB_ACTIVE;
         pwPane.style.display   = 'none';
         facePane.style.display = 'block';
-        initFaceLogin();          // ← single clean call
+        initFaceLogin();
     } else {
         faceBtn.className  = TAB_INACTIVE;
         pwBtn.className    = TAB_ACTIVE;
@@ -197,46 +194,27 @@ function switchAuthTab(mode) {
     }
 }
 
-// ── Reset the face pane back to "live video" state ────────────────────────────
 function resetFaceUI() {
-    document.getElementById('faceVideo').classList.remove('hidden');
-    document.getElementById('faceSnapshot').classList.add('hidden');
-    document.getElementById('faceVerifiedOverlay').classList.add('hidden');
-    document.getElementById('faceVerifiedOverlay').classList.remove('flex');
-    document.getElementById('laserLine').classList.remove('hidden');
-    document.getElementById('scanReticle').style.borderColor = 'rgba(255,255,255,0.3)';
+    document.getElementById('faceViewfinderWrap').style.display = 'block';
+    document.getElementById('faceLoaderPane').style.display       = 'none';
+    document.getElementById('faceInstructionTip').style.display   = 'flex';
+    document.getElementById('faceEmailContainer').style.display   = 'block';
+    document.getElementById('faceNoteText').style.display         = 'block';
+    document.getElementById('scanReticle').style.borderColor      = 'rgba(255,255,255,0.3)';
 }
 
-// ── Freeze the viewfinder to a static snapshot + show verified overlay ────────
-function freezeViewfinder(photoDataUrl) {
-    const video    = document.getElementById('faceVideo');
-    const snapshot = document.getElementById('faceSnapshot');
-    const overlay  = document.getElementById('faceVerifiedOverlay');
-    const laser    = document.getElementById('laserLine');
-
-    // Draw last captured frame to canvas
-    if (photoDataUrl) {
-        const img = new Image();
-        img.onload = () => {
-            const ctx = snapshot.getContext('2d');
-            snapshot.width  = 240;
-            snapshot.height = 240;
-            ctx.drawImage(img, 0, 0, 240, 240);
-        };
-        img.src = photoDataUrl;
+function showFaceLoader(msg) {
+    document.getElementById('faceViewfinderWrap').style.display = 'none';
+    document.getElementById('faceInstructionTip').style.display   = 'none';
+    document.getElementById('faceEmailContainer').style.display   = 'none';
+    document.getElementById('faceNoteText').style.display         = 'none';
+    document.getElementById('faceLoaderPane').style.display       = 'block';
+    if (msg) {
+        document.getElementById('faceLoaderText').innerText = msg;
     }
-
-    video.classList.add('hidden');
-    snapshot.classList.remove('hidden');
-    laser.classList.add('hidden');
-    overlay.classList.remove('hidden');
-    overlay.classList.add('flex');
-    document.getElementById('scanReticle').style.borderColor = '#10b981';
 }
 
-// ── Start the automatic face login flow ───────────────────────────────────────
 async function initFaceLogin() {
-    // Make sure any previous session is fully stopped
     window.biometricEngine.stopCamera();
     resetFaceUI();
 
@@ -245,50 +223,35 @@ async function initFaceLogin() {
     const reticle = document.getElementById('scanReticle');
 
     const ok = await window.biometricEngine.startCamera(video, status, reticle);
-    if (!ok) return; // updateStatus already called internally with error
+    if (!ok) return;
 
     const emailFilter = document.getElementById('biometricTargetEmail').value.trim() || null;
-
-    // Pass UI refs so the engine can restart camera on failed match
     const uiRefs = { videoEl: video, statusEl: status, reticleEl: reticle };
 
     window.biometricEngine.startLoginBlinkScan(
-        // onSuccessCallback
         function(result) {
             window.location.href = result.redirect || 'dashboard.php';
         },
         emailFilter,
         uiRefs
     );
-
-    // Hook into blink to freeze viewfinder immediately
-    const _origDetect = window.biometricEngine.startBlinkDetection.bind(window.biometricEngine);
-    // Note: engine's own startLoginBlinkScan already hooks onBlinkCaptured.
-    // We patch the frame-update to trigger the freeze at BLINK_DETECTED.
-    // Actual freeze is triggered via the onBlinkCaptured callback below.
 }
 
-// Patch: freeze viewfinder the moment blink is detected
-// Override the engine's startLoginBlinkScan to intercept the blink data
+// Intercept face capture to hide camera box and display loader
 (function() {
     const original = BiometricEngine.prototype.startLoginBlinkScan;
     BiometricEngine.prototype.startLoginBlinkScan = function(onSuccessCallback, emailFilter, uiRefs) {
-        // We need to intercept onBlinkCaptured to freeze the UI
         const _this = this;
 
-        const wrappedDetect = function(onBlinkCaptured, onFrameUpdate) {
-            // Wrap onBlinkCaptured to freeze UI before the API call
-            const wrappedCapture = function(blinkData) {
-                // Freeze viewfinder immediately
-                freezeViewfinder(blinkData.photo);
-                // Then run the original capture handler
-                if (onBlinkCaptured) onBlinkCaptured(blinkData);
+        const wrappedDetect = function(onFaceCaptured, onFrameUpdate) {
+            const wrappedCapture = function(captureData) {
+                // Show clean loader instead of camera box upon capture
+                showFaceLoader('Face captured: verifying identity with AWS Rekognition...');
+                if (onFaceCaptured) onFaceCaptured(captureData);
             };
-            // Call original startBlinkDetection
             BiometricEngine.prototype.startBlinkDetection.call(_this, wrappedCapture, onFrameUpdate);
         };
 
-        // Temporarily replace startBlinkDetection for this call
         const origDetect = _this.startBlinkDetection;
         _this.startBlinkDetection = wrappedDetect;
         original.call(_this, onSuccessCallback, emailFilter, uiRefs);

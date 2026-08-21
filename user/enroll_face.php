@@ -20,7 +20,7 @@ include_once("../includes/navbar.php");
                     <i class="fa-solid fa-face-viewfinder"></i>
                 </div>
                 <h1 class="font-heading text-xl sm:text-2xl font-bold text-zinc-900 tracking-tight">AI Face ID Enrollment</h1>
-                <p class="text-xs sm:text-sm text-zinc-500 mt-1 max-w-sm mx-auto">Active Eye-Blink Liveness · AWS Rekognition Verification</p>
+                <p class="text-xs sm:text-sm text-zinc-500 mt-1 max-w-sm mx-auto">Automatic Hold &amp; Capture . AWS Rekognition Liveness</p>
             </div>
 
             <!-- Profile Status Bar -->
@@ -57,17 +57,17 @@ include_once("../includes/navbar.php");
             <div id="stage1" class="space-y-4">
                 <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2.5">
                     <p class="font-bold text-sm text-amber-950 flex items-center gap-1.5">
-                        <i class="fa-solid fa-eye-slash text-amber-600"></i> How Liveness Verification Works
+                        <i class="fa-solid fa-camera text-amber-600"></i> Automatic Face Verification
                     </p>
                     <ul class="space-y-2 ml-1">
                         <li class="flex items-start gap-2"><i class="fa-solid fa-1 text-amber-700 font-bold mt-0.5"></i>
-                            <span>Click <strong>Start</strong> and hold your face still inside the oval.</span></li>
+                            <span>Click <strong>Start</strong> and allow camera access.</span></li>
                         <li class="flex items-start gap-2"><i class="fa-solid fa-2 text-amber-700 font-bold mt-0.5"></i>
-                            <span>Wait for the banner to turn <strong class="text-amber-700">amber</strong> — that means your face is detected.</span></li>
+                            <span>Position your face inside the oval frame with good lighting.</span></li>
                         <li class="flex items-start gap-2"><i class="fa-solid fa-3 text-amber-700 font-bold mt-0.5"></i>
-                            <span><strong>BLINK ONCE</strong>. The camera shuts off immediately — that is your confirmation.</span></li>
+                            <span>Hold steady for <strong>2 seconds</strong>. The photo is captured automatically.</span></li>
                         <li class="flex items-start gap-2"><i class="fa-solid fa-4 text-amber-700 font-bold mt-0.5"></i>
-                            <span>AWS Rekognition checks liveness, quality, and uniqueness. Do not move after blinking.</span></li>
+                            <span>AWS Rekognition verifies face quality and duplicate detection server-side.</span></li>
                     </ul>
                 </div>
 
@@ -84,30 +84,38 @@ include_once("../includes/navbar.php");
                 <div id="blinkBanner"
                     class="p-3 rounded-xl font-bold text-xs sm:text-sm text-center flex items-center justify-center gap-2 shadow-sm bg-zinc-700 text-white">
                     <i class="fa-solid fa-circle-notch animate-spin text-base"></i>
-                    <span id="blinkBannerText">Starting camera…</span>
+                    <span id="blinkBannerText">Starting camera...</span>
                 </div>
 
                 <!-- Camera box -->
                 <div class="relative w-full max-w-xs mx-auto aspect-square rounded-2xl overflow-hidden border-2 border-zinc-900 bg-zinc-900 shadow-md">
                     <video id="enrollVideo" class="w-full h-full object-cover scale-x-[-1]" autoplay playsinline muted></video>
 
-                    <!-- Static snapshot canvas (shown after blink, before stage3 transitions) -->
+                    <!-- Static snapshot canvas (shown after capture) -->
                     <canvas id="enrollSnapshot" class="absolute inset-0 w-full h-full object-cover scale-x-[-1] hidden"></canvas>
 
-                    <!-- "Captured!" overlay (shown after blink) -->
+                    <!-- "Captured!" overlay (shown after capture) -->
                     <div id="capturedOverlay" class="absolute inset-0 bg-emerald-900/75 hidden flex-col items-center justify-center gap-3">
                         <i class="fa-solid fa-circle-check text-white text-5xl"></i>
-                        <p class="text-white text-sm font-bold">Captured! Processing…</p>
+                        <p class="text-white text-sm font-bold">Captured! Processing...</p>
                     </div>
 
                     <!-- Oval reticle -->
                     <div id="enrollReticle" class="absolute inset-4 rounded-[38px] border-2 border-white/30 pointer-events-none transition-colors duration-300"></div>
+
+                    <!-- Circular Progress Ring SVG -->
+                    <svg class="absolute inset-0 w-full h-full pointer-events-none p-4" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="3" />
+                        <circle id="progressCircle" cx="50" cy="50" r="46" fill="none" stroke="#10b981" stroke-width="4"
+                                stroke-dasharray="289" stroke-dashoffset="289" stroke-linecap="round"
+                                class="transition-all duration-150 transform -rotate-90 origin-center" />
+                    </svg>
                 </div>
 
                 <!-- Status pill row -->
                 <div class="flex items-center justify-between text-xs font-semibold px-1">
                     <span id="enrollStatusPill" class="inline-flex items-center gap-1.5 text-zinc-500">
-                        <span class="w-2 h-2 rounded-full bg-zinc-400"></span> Waiting for camera…
+                        <span class="w-2 h-2 rounded-full bg-zinc-400"></span> Waiting for camera...
                     </span>
                     <button onclick="cancelEnrollment()" class="text-zinc-400 hover:text-red-500 text-[11px] underline">Cancel</button>
                 </div>
@@ -122,7 +130,7 @@ include_once("../includes/navbar.php");
                     </div>
                 </div>
                 <h3 class="font-heading text-base font-bold text-zinc-900">AWS Rekognition Verification</h3>
-                <p id="processText" class="text-xs text-zinc-500">Checking liveness, face quality &amp; duplicate accounts…</p>
+                <p id="processText" class="text-xs text-zinc-500">Checking liveness, face quality and duplicate accounts...</p>
             </div>
 
             <!-- Back link -->
@@ -165,13 +173,10 @@ include_once("../includes/navbar.php");
 </div>
 
 <script>
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
 function setBanner(text, style) {
     const banner = document.getElementById('blinkBanner');
     const span   = document.getElementById('blinkBannerText');
     if (!banner || !span) return;
-    // style: 'idle' | 'seeking' | 'ready' | 'detected'
     const map = {
         idle:     'p-3 rounded-xl font-bold text-xs sm:text-sm text-center flex items-center justify-center gap-2 shadow-sm bg-zinc-700 text-white',
         seeking:  'p-3 rounded-xl font-bold text-xs sm:text-sm text-center flex items-center justify-center gap-2 shadow-sm bg-zinc-800 text-white',
@@ -181,7 +186,7 @@ function setBanner(text, style) {
     const icons = {
         idle:     '<i class="fa-solid fa-circle-notch animate-spin text-base"></i>',
         seeking:  '<i class="fa-solid fa-eye text-base animate-bounce"></i>',
-        ready:    '<i class="fa-solid fa-eye text-base animate-bounce"></i>',
+        ready:    '<i class="fa-solid fa-face-smile text-base"></i>',
         detected: '<i class="fa-solid fa-circle-check text-base"></i>',
     };
     banner.className = map[style] || map.idle;
@@ -202,7 +207,6 @@ function setPill(text, dot) {
     pill.innerHTML = `<span class="w-2 h-2 rounded-full ${dotCls}"></span> ${text}`;
 }
 
-/** Freeze camera view to snapshot + show "Captured!" overlay */
 function freezeEnrollView(photoDataUrl) {
     const video    = document.getElementById('enrollVideo');
     const snapshot = document.getElementById('enrollSnapshot');
@@ -228,66 +232,51 @@ function freezeEnrollView(photoDataUrl) {
 // ── Enrollment Controller ──────────────────────────────────────────────────────
 
 async function startEnrollment() {
-    // Show stage 2 immediately
     document.getElementById('stage1').style.display = 'none';
     document.getElementById('stage2').style.display = 'block';
-    setBanner('Starting camera…', 'idle');
+    setBanner('Starting camera...', 'idle');
 
-    const video   = document.getElementById('enrollVideo');
-    const status  = document.getElementById('enrollStatusPill');
-    const reticle = document.getElementById('enrollReticle');
+    const video    = document.getElementById('enrollVideo');
+    const status   = document.getElementById('enrollStatusPill');
+    const reticle  = document.getElementById('enrollReticle');
+    const progress = document.getElementById('progressCircle');
 
-    const ok = await window.biometricEngine.startCamera(video, status, reticle);
+    const ok = await window.biometricEngine.startCamera(video, status, reticle, progress);
     if (!ok) {
         showEnrollError('Camera access denied. Please allow camera permissions in your browser and try again.');
         cancelEnrollment();
         return;
     }
 
-    setBanner('Position face inside the oval', 'seeking');
+    setBanner('Position your face inside the oval', 'seeking');
     setReticle('rgba(255,255,255,0.3)');
-    setPill('Looking for face…', 'amber');
+    setPill('Looking for face...', 'amber');
 
-    // ── Blink Detection ─────────────────────────────────────────────────────
-    window.biometricEngine.startBlinkDetection(
+    window.biometricEngine.startFaceCapture(
 
-        // onBlinkCaptured — fires AFTER camera is already stopped by the engine
-        function(blinkData) {
-            // 1. Freeze the view immediately so user sees confirmation
-            freezeEnrollView(blinkData.photo);
-            setBanner('Blink verified! Sending to AWS Rekognition…', 'detected');
+        function(captureData) {
+            freezeEnrollView(captureData.photo);
+            setBanner('Face captured! Sending to AWS Rekognition...', 'detected');
             setPill('Captured!', 'green');
 
-            // 2. Brief pause so user can see "Captured!", then switch to stage 3
             setTimeout(function() {
                 document.getElementById('stage2').style.display = 'none';
                 document.getElementById('stage3').style.display = 'block';
-                submitEnrollment(blinkData.photo, blinkData.descriptor, blinkData.liveness_verified);
+                submitEnrollment(captureData.photo, captureData.descriptor, captureData.liveness_verified);
             }, 600);
         },
 
-        // onFrameUpdate — updates banner + reticle each scan tick
-        function(frameRes) {
-            if (!frameRes) return;
-
-            if (frameRes.state === 'SEEKING_FACE') {
-                setBanner('Align your face inside the oval', 'seeking');
+        function(res) {
+            if (!res) return;
+            if (res.state === 'NO_FACE') {
+                setBanner('Position your face inside the oval', 'seeking');
                 setReticle('rgba(255,255,255,0.3)');
-                setPill('Looking for face…', 'amber');
-
-            } else if (frameRes.state === 'WAITING_FOR_BLINK') {
-                setBanner('Face detected — BLINK YOUR EYES now!', 'ready');
-                setReticle('#f59e0b');
-                setPill('Waiting for blink…', 'amber');
-
-            } else if (frameRes.state === 'EYES_CLOSED') {
-                setBanner('Eyes closing — hold still…', 'detected');
+                setPill('Looking for face...', 'amber');
+            } else if (res.state === 'FACE_DETECTED') {
+                const remaining = ((2500 - (res.progress / 100) * 2500) / 1000).toFixed(1);
+                setBanner(`Face detected: hold still (${remaining}s)`, 'ready');
                 setReticle('#10b981');
-                setPill('Blink in progress…', 'green');
-
-            } else if (frameRes.state === 'BLINK_DETECTED') {
-                setBanner('Blink verified! Capturing…', 'detected');
-                setReticle('#10b981');
+                setPill('Holding face steady...', 'green');
             }
         }
     );
@@ -295,7 +284,7 @@ async function startEnrollment() {
 
 async function submitEnrollment(photoDataUrl, descriptor, livenessVerified) {
     if (!photoDataUrl) {
-        showEnrollError('No face photo was captured. This can happen in very dark conditions. Please try again in better lighting.');
+        showEnrollError('No face photo was captured. Please try again.');
         return;
     }
 
@@ -344,7 +333,6 @@ function showEnrollError(msg) {
 
 function retryEnrollment() {
     document.getElementById('errorModal').classList.add('opacity-0', 'pointer-events-none');
-    // Reset stage2 camera elements to initial state
     document.getElementById('enrollVideo').classList.remove('hidden');
     document.getElementById('enrollSnapshot').classList.add('hidden');
     document.getElementById('capturedOverlay').classList.add('hidden');

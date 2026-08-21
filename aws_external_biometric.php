@@ -176,7 +176,7 @@ function detectFaceQuality($client, $imageBytes, $requireEyesOpen = true) {
             if ($ec >= 70 && $ev === false) {
                 return [
                     'valid' => false,
-                    'error' => 'Liveness check failed: eyes appear closed in the captured image. Keep your eyes open — the system captures before your blink.',
+                    'error' => 'Liveness check failed: eyes appear closed in the captured image. Keep your eyes open: the system captures before your blink.',
                     'code'  => 'LIVENESS_FAIL',
                 ];
             }
